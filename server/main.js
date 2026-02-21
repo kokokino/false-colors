@@ -9,7 +9,7 @@ import './rateLimiting.js';
 import './migrations/0_steps.js';
 
 Meteor.startup(async () => {
-  console.log('Spoke App Skeleton started');
+  console.log('False Colors started');
   
   // Verify required settings are present
   const settings = Meteor.settings;

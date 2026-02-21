@@ -1,7 +1,7 @@
 {
   "public": {
-    "appName": "Spoke App Skeleton",
-    "appId": "spoke_app_skeleton",
+    "appName": "False Colors",
+    "appId": "false_colors",
     "hubUrl": "https://kokokino.com",
     "requiredProducts": ["base-monthly"]
   },

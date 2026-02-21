@@ -1,25 +1,40 @@
-# Spoke App Skeleton
+# False Colors
 
-A template for creating new spoke apps and a reference implementation of Hub integration for the [Kokokino](https://www.kokokino.com) ecosystem.
+A cooperative social deduction game for 4-6 players, built as a spoke app in the [Kokokino](https://www.kokokino.com) ecosystem.
 
 ## Overview
 
-The Spoke App Skeleton is a fully functional Meteor application that demonstrates how to integrate with the Kokokino Hub for authentication, billing, and Single Sign‑On (SSO). It serves as both:
+In False Colors, players crew a vessel facing escalating threats — storms, monsters, sabotage — while suspecting that one among them may be a traitor working against the group. Inspired by Shadows over Camelot's key innovation: **mandatory evil actions** give the traitor natural cover, since everyone must do something harmful each turn.
 
-1. **A Template** – Ready-to-fork starting point for creating new spoke apps
-2. **A Reference Implementation** – Working example of Hub integration patterns
-3. **A Demo App** – Functional chat application showing real-time Meteor features
+The first theme is **Phantom Tides** — a ghost ship sailing cursed waters. One crew member may be a phantom, a spirit dragging everyone to the depths. Future content packs (Hollow Sanctum, Last Signal) share the same core engine.
+
+AI players fill empty seats, using rule-based decisions and template dialogue with optional cloud LLM personality. Games work with any mix of humans and AI (minimum 1 human).
+
+## Development Status
+
+**Phase 1: Text Prototype** — Core game engine with text-only Mithril UI. The demo chat currently in the app is a placeholder from the spoke skeleton.
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 1. Core Engine | Game state machine, round resolution, rule-based AI, Phantom Tides theme | Not started |
+| 2. 3D Scene | Babylon JS ship table, PC + VR (WebXR) | Planned |
+| 3. Voice Chat | PeerJS human audio, discussion timers, text fallback | Planned |
+| 4. AI Voice | Kokoro TTS, template dialogue, character voices | Planned |
+| 5. Cloud LLM + Polish | Style transfer, STT voice commands, VR whispering | Planned |
+| 6. Launch Phantom Tides | Testing, cost monitoring, deploy | Planned |
+| 7. Hollow Sanctum | Second theme content pack | Planned |
+| 8. Last Signal | Third theme content pack | Planned |
 
 ## Architecture
 
 This app follows the Kokokino Hub & Spoke architecture:
 
-- **Hub** – Central authentication and billing system (`kokokino.com`)
-- **Spoke** – Independent app that relies on Hub for user management
+- **Hub** — Central authentication and billing system (`kokokino.com`)
+- **Spoke** — Independent app that relies on Hub for user management
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         KOKOKINO HUB                           │
+│                         KOKOKINO HUB                            │
 │                        (kokokino.com)                           │
 │  • User accounts    • Billing    • SSO tokens    • Spoke API   │
 └─────────────────────────────────────────────────────────────────┘
@@ -28,38 +43,57 @@ This app follows the Kokokino Hub & Spoke architecture:
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    SPOKE APP SKELETON                           │
-│                  (localhost:3010 or your-domain)                │
-│  • SSO validation  • Chat demo    • Subscription checks        │
+│                        FALSE COLORS                             │
+│              (localhost:3040 or false-colors.kokokino.com)       │
+│  • SSO validation  • Game engine    • AI players                │
+│  • Voice chat      • 3D scenes      • Subscription checks      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ## Features
 
-### 1. SSO Integration
-- Complete token validation flow from Hub redirects
+### Hub Integration (Active)
+- Complete SSO token validation flow from Hub redirects
 - Local session management using Meteor Accounts
-- Automatic session refresh and expiration handling
+- Subscription checking middleware
+- Authentication pages (Not Logged In, Subscription Required, Session Expired)
 
-### 2. Subscription Management
-- Middleware for checking user subscriptions
-- Graceful handling of expired/missing subscriptions
-- Integration with Hub's subscription API
+### Game Engine (Planned)
+- Turn-based cooperative game with traitor mechanic
+- 4-6 players per game (humans + AI fill-ins)
+- Mandatory evil actions provide traitor cover
+- 8-10 rounds, ~30 minutes per game
+- No player elimination
 
-### 3. Demo Chat Room
-- Real-time messaging using Meteor publications and methods
-- Messages stored in MongoDB (capped at 100 messages)
-- User presence and typing indicators (future enhancement)
+### AI Players (Planned)
+- Rule-based utility AI for game decisions (server-side, no LLM)
+- Template dialogue system (80% of AI speech, free)
+- Cloud LLM style transfer for personality (20%, ~$0.001/game)
+- Loyal AI and traitor AI with distinct strategies
 
-### 4. Authentication Pages
-- "Not Logged In" page with link to Hub
-- "Subscription Required" page with clear instructions
-- "Session Expired" page for token expiration
+### Voice Chat (Planned)
+- PeerJS peer-to-peer audio for human players
+- Kokoro-82M TTS for AI character voices (client-side, free)
+- Web Speech API for speech-to-text (Whisper WASM fallback)
 
-### 5. Modern UI Components
-- Built with Mithril.js for lightweight, reactive components
-- Styled with Pico CSS for minimal, classless styling
-- Responsive design that works on mobile and desktop
+### 3D Visualization (Planned)
+- Babylon JS 8 scenes (ship's war table for Phantom Tides)
+- WebXR for VR support; arc-rotate camera for PC
+- Each theme is a content pack: scene + roles + templates + assets
+
+## Tech Stack
+
+| Technology | Purpose | Status |
+|------------|---------|--------|
+| **Meteor 3.4** | Real-time framework, MongoDB, user accounts | Active |
+| **Mithril.js 2.3** | UI framework (JavaScript-generated HTML) | Active |
+| **Pico CSS** | Classless CSS framework | Active |
+| **jsonwebtoken** | JWT validation for SSO | Active |
+| **Babylon JS 8** | 3D rendering, WebXR, Havok physics | Planned |
+| **PeerJS** | P2P voice chat | Planned |
+| **Kokoro TTS** | Client-side AI voices (WebGPU + WASM) | Planned |
+| **Web Speech API** | Client-side speech-to-text | Planned |
+| **Cloud LLM** | AI dialogue style transfer (GPT-4o-mini) | Planned |
 
 ## Getting Started
 
@@ -68,27 +102,12 @@ This app follows the Kokokino Hub & Spoke architecture:
 - Node.js 22.x
 - Access to a running Kokokino Hub instance (local or production)
 
-## Preferred Tech Stack
-We focus on simplicity as a super‑power:
-
-| Technology | Purpose |
-|------------|---------|
-| **JavaScript** | Unified language for both server‑side and browser‑side code |
-| **Meteor JS v3.4** | Realtime apps, user accounts, and MongoDB integration |
-| **Meteor Galaxy** | To deploy our apps in the cloud |
-| **Mithril JS v2.3** | General UI, using JavaScript to craft HTML |
-| **Pico CSS** | Concise HTML that looks good with minimal effort |
-| **Babylon JS v8** | 3D rendering and physics (with Havok JS built‑in) |
-| **quave:migrations** | For managing changes to the database |
-
-You can choose a different tech stack but the more we converge on a similar stack, the easier it is to help each other. 
-
 ### Installation
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/kokokino/spoke_app_skeleton.git
-   cd spoke_app_skeleton
+   git clone https://github.com/kokokino/false-colors.git
+   cd false-colors
    ```
 
 2. Install dependencies:
@@ -105,8 +124,8 @@ You can choose a different tech stack but the more we converge on a similar stac
    ```json
    {
      "public": {
-       "appName": "Your Spoke App Name",
-       "appId": "your_app_id",
+       "appName": "False Colors",
+       "appId": "false_colors",
        "hubUrl": "http://localhost:3000",
        "requiredProducts": ["base_monthly"]
      },
@@ -120,7 +139,7 @@ You can choose a different tech stack but the more we converge on a similar stac
 
 5. Run the development server:
    ```bash
-   meteor --settings settings.development.json --port 3010
+   meteor --settings settings.development.json --port 3040
    ```
 
    Migrations run automatically on startup. You should see "Created UsedNonces TTL index" in the logs on first run.
@@ -136,22 +155,22 @@ For local development with the Hub:
    # Hub runs on http://localhost:3000
    ```
 
-2. **Start the Spoke**:
+2. **Start False Colors**:
    ```bash
-   cd ../spoke_app_skeleton
-   meteor --settings settings.development.json --port 3010
-   # Spoke runs on http://localhost:3010
+   cd ../false-colors
+   meteor --settings settings.development.json --port 3040
+   # Runs on http://localhost:3040
    ```
 
 3. **Access the app**:
    - Visit http://localhost:3000 to log into the Hub
-   - Click "Launch" on your spoke app in the Hub
-   - You'll be redirected to http://localhost:3010 with SSO token
+   - Click "Launch" on False Colors in the Hub
+   - You'll be redirected to http://localhost:3040 with SSO token
 
 ## Project Structure
 
 ```
-spoke_app_skeleton/
+false-colors/
 ├── client/
 │   ├── main.html          # Main HTML template
 │   ├── main.css           # Global styles
@@ -164,7 +183,7 @@ spoke_app_skeleton/
 │   ├── ui/
 │   │   ├── components/    # Reusable UI components
 │   │   │   ├── ChatMessage.js
-│   │   │   ├── ChatRoom.js
+│   │   │   ├── ChatRoom.js       # Demo placeholder
 │   │   │   ├── RequireAuth.js
 │   │   │   └── RequireSubscription.js
 │   │   ├── layouts/       # Page layouts
@@ -175,9 +194,13 @@ spoke_app_skeleton/
 │   │       ├── NoSubscription.js
 │   │       ├── SessionExpired.js
 │   │       └── SsoCallback.js
-│   └── lib/
-│       └── collections/   # MongoDB collections
-│           └── chatMessages.js
+│   ├── lib/
+│   │   └── collections/   # MongoDB collections
+│   │       └── chatMessages.js
+│   ├── game/              # Game state machine, round resolution, AI (planned)
+│   ├── ai/                # Dialogue templates, LLM proxy, personality (planned)
+│   ├── voice/             # Voice chat, TTS, STT (planned)
+│   └── 3d/                # Babylon JS scenes, WebXR, theme assets (planned)
 ├── server/
 │   ├── main.js            # Server entry point
 │   ├── accounts.js        # Custom login handlers
@@ -212,38 +235,11 @@ Higher-order component that:
 - Re-validates subscriptions periodically
 - Shows loading states during checks
 
-### Chat Implementation
-Demonstrates Meteor's real-time capabilities:
+### Demo Chat (Placeholder)
+The current chat implementation demonstrates Meteor's real-time capabilities and will be replaced by the game interface:
 - **Server-side**: MongoDB-backed message store with publication (auto-caps at 100 messages)
 - **Client-side**: Reactive subscription with Mithril components
 - **Methods**: Secure message sending with user validation and rate limiting
-
-## Creating Your Own Spoke App
-
-### Step 1: Fork This Repository
-Use this skeleton as a starting point for your own spoke app.
-
-### Step 2: Update Configuration
-1. Change `appId` in settings to your app's unique identifier
-2. Update `appName` to your app's display name
-3. Set `requiredProducts` to the product IDs your app needs
-
-### Step 3: Customize Features
-1. Replace the demo chat with your app's functionality
-2. Add your own collections, methods, and publications
-3. Create custom UI components for your app's needs
-4. Remove or modify authentication pages as needed
-
-### Step 4: Register with Hub
-1. Contact Kokokino administrators to get an API key
-2. Provide your app's URL and required products
-3. Receive your unique `appId` and API key
-
-### Step 5: Deploy
-Deploy to Meteor Galaxy or your preferred hosting:
-```bash
-meteor deploy your-app.kokokino.com --settings settings.production.json
-```
 
 ## Development Guidelines
 
@@ -258,6 +254,7 @@ meteor deploy your-app.kokokino.com --settings settings.production.json
 - Always validate SSO tokens before creating sessions
 - Implement rate limiting on sensitive endpoints
 - Sanitize user input before display
+- All cloud LLM calls proxied through Meteor methods — API keys never leave the server
 
 ### Performance Tips
 - Cache subscription checks when appropriate
@@ -297,7 +294,7 @@ Tests cover:
    - Check that product IDs match between Hub and spoke
    - Verify API responses are being parsed correctly
 
-4. **Chat Messages Not Updating**
+4. **Real-time Data Not Updating**
    - Ensure user is logged in and has subscription
    - Check browser console for errors
    - Verify Meteor methods and publications are working
@@ -308,14 +305,14 @@ We welcome contributions! Please see our [Contributing Guidelines](documentation
 
 ## Related Resources
 
-- [Kokokino](https://www.kokokino.com) – Main platform website
-- [Kokokino Hub](https://github.com/kokokino/hub) – Central authentication and billing app
-- [Hub & Spoke Strategy](documentation/HUB_SPOKE_STRATEGY.md) – Architecture documentation
-- [Conventions](documentation/CONVENTIONS.md) – Coding advice
-- [Backlog Beacon](https://github.com/kokokino/backlog_beacon) – Another example spoke app for game collection tracking
-- [Meteor Documentation](https://docs.meteor.com/) – Meteor framework guides
-- [Mithril.js Documentation](https://mithril.js.org/) – UI framework reference
+- [Kokokino](https://www.kokokino.com) — Main platform website
+- [Kokokino Hub](https://github.com/kokokino/hub) — Central authentication and billing app
+- [False Colors on GitHub](https://github.com/kokokino/false-colors) — This repository
+- [Hub & Spoke Strategy](documentation/HUB_SPOKE_STRATEGY.md) — Architecture documentation
+- [Conventions](documentation/CONVENTIONS.md) — Coding advice
+- [Meteor Documentation](https://docs.meteor.com/) — Meteor framework guides
+- [Mithril.js Documentation](https://mithril.js.org/) — UI framework reference
 
 ## License
 
-MIT License – see [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE) file for details.

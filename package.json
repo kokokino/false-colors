@@ -1,16 +1,16 @@
 {
-  "name": "spoke_app_skeleton",
+  "name": "false_colors",
   "private": true,
   "engines": {
     "node": "22.x"
   },
   "scripts": {
     "start": "meteor run",
-    "dev": "meteor --port 3010 --settings settings.development.json",
+    "dev": "meteor --port 3040 --settings settings.development.json",
     "test": "meteor test --once --driver-package meteortesting:mocha",
     "test-app": "TEST_WATCH=1 meteor test --full-app --driver-package meteortesting:mocha",
     "visualize": "meteor --production --extra-packages bundle-visualizer",
-    "prod-deploy": "meteor deploy --settings settings.production.json spoke-app-skeleton.meteorapp.com"
+    "prod-deploy": "meteor deploy --settings settings.production.json false-colors.kokokino.com"
   },
   "dependencies": {
     "@babel/runtime": "^7.23.5",

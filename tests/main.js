@@ -7,10 +7,10 @@ if (Meteor.isServer) {
   require("../server/methods.js");
 }
 
-describe("spoke_app_skeleton", function () {
+describe("false_colors", function () {
   it("package.json has correct name", async function () {
     const { name } = await import("../package.json");
-    assert.strictEqual(name, "spoke_app_skeleton");
+    assert.strictEqual(name, "false_colors");
   });
 
   if (Meteor.isClient) {

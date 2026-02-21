@@ -6,8 +6,8 @@ import { RequireAuth } from '../components/RequireAuth.js';
 const HomeContent = {
   view() {
     return m('div', [
-      m('h1', 'Welcome to Spoke App Skeleton'),
-      m('p', 'This is a demo spoke app that integrates with the Kokokino Hub for authentication.'),
+      m('h1', 'Welcome to False Colors'),
+      m('p', 'A cooperative social deduction game for 4-6 players. Can you unmask the traitor before it\'s too late? The demo chat below is a placeholder for the game interface.'),
       
       m('article', [
         m('header', m('h2', 'Demo Chat Room')),

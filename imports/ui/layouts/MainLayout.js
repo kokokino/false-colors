@@ -11,7 +11,7 @@ export const MainLayout = {
       // Header
       m('header.container', [
         m('a.brand[href=/]', { oncreate: m.route.link }, 
-          Meteor.settings.public?.appName || 'Spoke App Skeleton'
+          Meteor.settings.public?.appName || 'False Colors'
         ),
         m('div.user-info', [
           isLoggingIn ? 
@@ -43,7 +43,7 @@ export const MainLayout = {
           ' • ',
           m('a', { href: hubUrl }, 'Return to Hub'), 
           ' • ',
-          m('a', { href: 'https://github.com/kokokino/spoke_app_skeleton', target: '_blank', rel: 'noopener' }, 'GitHub')
+          m('a', { href: 'https://github.com/kokokino/false-colors', target: '_blank', rel: 'noopener' }, 'GitHub')
         ])
       ])
     ]);
