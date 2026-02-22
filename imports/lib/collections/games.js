@@ -34,7 +34,7 @@ export const GameResult = {
   CREW_LOSS: 'crew_loss', // Survived but skulls >= coins
 };
 
-export const MIN_PLAYERS = 4;
+export const MIN_PLAYERS = 6;
 export const MAX_PLAYERS = 6;
 
 export const GameConstants = {

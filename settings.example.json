@@ -5,7 +5,7 @@
     "hubUrl": "https://kokokino.com",
     "requiredProducts": ["base-monthly"],
     "game": {
-      "minPlayers": 4,
+      "minPlayers": 6,
       "maxPlayers": 6,
       "discussionTimeSec": 30,
       "roundCount": 10,
