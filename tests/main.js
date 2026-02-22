@@ -4,6 +4,7 @@ import { Meteor } from "meteor/meteor";
 // Import server modules to ensure methods are registered
 if (Meteor.isServer) {
   require("../server/methods.js");
+  require("../server/gameMethods.js");
 }
 
 describe("false_colors", function () {
@@ -811,6 +812,22 @@ describe("false_colors", function () {
         const result = chooseLoyalAction(player, game, Personalities.analytical);
         assert.strictEqual(result, null);
       });
+
+      it("loyal: prioritizes nearly-complete threat over fresh off-spec one", async function () {
+        const { chooseLoyalAction } = await import("../imports/game/ai/actionStrategy.js");
+        const { Personalities } = await import("../imports/game/ai/personalities.js");
+        const threats = [
+          makeThreat({ id: 't1', type: 'kraken', threshold: 4, doomPerRound: 1, progress: 0 }),
+          makeThreat({ id: 't2', type: 'fog', threshold: 4, doomPerRound: 1, progress: 3 }),
+        ];
+        const player = { role: 'navigator', curses: [] };
+        const game = makeGame({ activeThreats: threats });
+        // analytical has actionOptimality 0.95 > 0.85, always picks best
+        // t1 (kraken, off-spec): remaining=4, urgency=4, strength=1, no bonus → 4
+        // t2 (fog, specialty): remaining=1, urgency=1, bonus=1*3=3, score=(1+3)*3=12
+        const result = chooseLoyalAction(player, game, Personalities.analytical);
+        assert.strictEqual(result, 't2');
+      });
     });
 
     // ---- 8. Dialogue Templates ----
@@ -1201,6 +1218,37 @@ describe("false_colors", function () {
         assert.strictEqual(firstCalled, false, "first timer should have been cancelled");
         assert.strictEqual(secondCalled, true, "second timer should have fired");
         clearPhaseTimer('timer-test-2');
+      });
+    });
+
+    // ---- 14. Game Methods — integration ----
+
+    describe("Game Methods — integration", function () {
+      it("game.submitToll rejects unauthenticated user", async function () {
+        try {
+          await Meteor.callAsync("game.submitToll", "fake-game-id", "supply");
+          assert.fail("Should have thrown an error");
+        } catch (error) {
+          assert.strictEqual(error.error, "not-authorized");
+        }
+      });
+
+      it("game.submitAction rejects unauthenticated user", async function () {
+        try {
+          await Meteor.callAsync("game.submitAction", "fake-game-id", "fake-threat-id");
+          assert.fail("Should have thrown an error");
+        } catch (error) {
+          assert.strictEqual(error.error, "not-authorized");
+        }
+      });
+
+      it("game.sendMessage rejects unauthenticated user", async function () {
+        try {
+          await Meteor.callAsync("game.sendMessage", "fake-game-id", "hello");
+          assert.fail("Should have thrown an error");
+        } catch (error) {
+          assert.strictEqual(error.error, "not-authorized");
+        }
       });
     });
   }

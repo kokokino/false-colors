@@ -81,6 +81,7 @@ export function resolveActions(game, submissions) {
 
     const role = getRoleById(player.role);
     if (!role) {
+      console.warn(`[resolveActions] Unknown role "${player.role}" for seat ${player.seatIndex}, skipping`);
       continue;
     }
 

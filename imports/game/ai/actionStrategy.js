@@ -6,14 +6,20 @@ import { Roles, getActionStrength } from '../roles.js';
 // Calculate threat priority score (higher = more urgent)
 function threatPriority(threat, role) {
   const strength = getActionStrength(role, threat.type);
-  const urgency = threat.doomPerRound * (threat.threshold - threat.progress);
-  return urgency * strength;
+  const remaining = threat.threshold - threat.progress;
+  const urgency = threat.doomPerRound * remaining;
+  const completionBonus = (remaining <= strength) ? threat.doomPerRound * 3 : 0;
+  return (urgency + completionBonus) * strength;
 }
 
 // Loyal AI action choice — pick the highest-utility threat
 export function chooseLoyalAction(player, game, personality) {
   const role = Object.values(Roles).find(r => r.id === player.role);
-  if (!role || game.activeThreats.length === 0) {
+  if (!role) {
+    console.warn(`[ai] chooseLoyalAction: unknown role "${player.role}", returning null`);
+    return null;
+  }
+  if (game.activeThreats.length === 0) {
     return null;
   }
 
@@ -45,7 +51,11 @@ export function chooseLoyalAction(player, game, personality) {
 // actionOptimality: high = more subtle (cooperates more, picks 2nd), low = blunt (picks 3rd more)
 export function choosePhantomAction(player, game, personality, round) {
   const role = Object.values(Roles).find(r => r.id === player.role);
-  if (!role || game.activeThreats.length === 0) {
+  if (!role) {
+    console.warn(`[ai] choosePhantomAction: unknown role "${player.role}", returning null`);
+    return null;
+  }
+  if (game.activeThreats.length === 0) {
     return null;
   }
 
