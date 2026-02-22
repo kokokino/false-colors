@@ -182,29 +182,33 @@ function scheduleAiDiscussion(gameId, aiPlayer, game) {
     }
 
     Meteor.setTimeout(async () => {
-      const currentGame = await Games.findOneAsync(gameId);
-      if (!currentGame || currentGame.currentPhase !== 'discussion') {
-        return;
-      }
+      try {
+        const currentGame = await Games.findOneAsync(gameId);
+        if (!currentGame || currentGame.currentPhase !== 'discussion') {
+          return;
+        }
 
-      let trigger;
-      if (i === 0) {
-        trigger = currentGame.currentRound === 1 ? 'greeting' : 'tollReaction';
-      } else if (i === 1) {
-        trigger = 'threatAssessment';
-      } else {
-        trigger = 'commentary';
-      }
-      const text = await generateAiDialogue(currentGame, aiPlayer, trigger);
+        let trigger;
+        if (i === 0) {
+          trigger = currentGame.currentRound === 1 ? 'greeting' : 'tollReaction';
+        } else if (i === 1) {
+          trigger = 'threatAssessment';
+        } else {
+          trigger = 'commentary';
+        }
+        const text = await generateAiDialogue(currentGame, aiPlayer, trigger);
 
-      await GameMessages.insertAsync({
-        gameId,
-        round: currentGame.currentRound,
-        seatIndex: aiPlayer.seatIndex,
-        displayName: aiPlayer.displayName,
-        text,
-        createdAt: new Date(),
-      });
+        await GameMessages.insertAsync({
+          gameId,
+          round: currentGame.currentRound,
+          seatIndex: aiPlayer.seatIndex,
+          displayName: aiPlayer.displayName,
+          text,
+          createdAt: new Date(),
+        });
+      } catch (err) {
+        console.error('[ai] discussion error:', err);
+      }
     }, delay);
   }
 }
@@ -231,25 +235,31 @@ async function handleAiAccusation(gameId, aiPlayer) {
 
     const guilty = voteOnAccusation(aiPlayer, game, game.accusation, personality);
 
-    const currentGame = await Games.findOneAsync(gameId);
-    if (!currentGame || !currentGame.accusation || currentGame.accusation.resolved) {
+    // Atomic check-and-push: prevents TOCTOU double-vote race
+    const updated = await Games.updateAsync(
+      {
+        _id: gameId,
+        'accusation.resolved': false,
+        'accusation.votes.seatIndex': { $ne: aiPlayer.seatIndex },
+      },
+      {
+        $push: { 'accusation.votes': { seatIndex: aiPlayer.seatIndex, guilty } },
+        $set: { updatedAt: new Date() },
+      }
+    );
+    if (updated === 0) {
       return;
     }
 
-    const newVotes = [...currentGame.accusation.votes, { seatIndex: aiPlayer.seatIndex, guilty }];
-    await Games.updateAsync(gameId, {
-      $set: {
-        'accusation.votes': newVotes,
-        updatedAt: new Date(),
-      },
-    });
-
-    // Check if all eligible voters have voted
-    const eligibleVoters = currentGame.players.length - 2;
-    if (newVotes.length >= eligibleVoters) {
-      const resolveAccusationPhase = getResolver('resolveAccusationPhase');
-      if (resolveAccusationPhase) {
-        await resolveAccusationPhase(gameId);
+    // Re-read to check if all eligible voters have voted
+    const updatedGame = await Games.findOneAsync(gameId);
+    if (updatedGame && updatedGame.accusation) {
+      const eligibleVoters = updatedGame.players.length - 2;
+      if (updatedGame.accusation.votes.length >= eligibleVoters) {
+        const resolveAccusationPhase = getResolver('resolveAccusationPhase');
+        if (resolveAccusationPhase) {
+          await resolveAccusationPhase(gameId);
+        }
       }
     }
     return;
@@ -271,26 +281,32 @@ async function handleAiAccusation(gameId, aiPlayer) {
     return;
   }
 
-  // Double-check no accusation has been made in the meantime
-  const freshGame = await Games.findOneAsync(gameId);
-  if (!freshGame || freshGame.accusation || freshGame.currentPhase !== 'accusation') {
+  // Atomic check-and-set: prevents TOCTOU double-accusation race
+  const updated = await Games.updateAsync(
+    {
+      _id: gameId,
+      currentPhase: 'accusation',
+      accusation: null,
+    },
+    {
+      $set: {
+        accusation: {
+          accuserSeat: aiPlayer.seatIndex,
+          targetSeat,
+          votes: [],
+          resolved: false,
+        },
+        updatedAt: new Date(),
+      },
+    }
+  );
+  if (updated === 0) {
     return;
   }
 
-  await Games.updateAsync(gameId, {
-    $set: {
-      accusation: {
-        accuserSeat: aiPlayer.seatIndex,
-        targetSeat,
-        votes: [],
-        resolved: false,
-      },
-      updatedAt: new Date(),
-    },
-  });
-
   // Generate accusation dialogue
-  const targetPlayer = freshGame.players.find(p => p.seatIndex === targetSeat);
+  const freshGame = await Games.findOneAsync(gameId);
+  const targetPlayer = freshGame ? freshGame.players.find(p => p.seatIndex === targetSeat) : null;
   const accusationText = await generateAiDialogue(freshGame, aiPlayer, 'accusation', {
     player_name: targetPlayer?.displayName || 'someone',
   });
@@ -306,21 +322,25 @@ async function handleAiAccusation(gameId, aiPlayer) {
   // If the target is AI, generate defense dialogue after a short delay
   if (targetPlayer && targetPlayer.isAI) {
     Meteor.setTimeout(async () => {
-      const currentGame = await Games.findOneAsync(gameId);
-      if (!currentGame || currentGame.currentPhase !== 'accusation') {
-        return;
+      try {
+        const currentGame = await Games.findOneAsync(gameId);
+        if (!currentGame || currentGame.currentPhase !== 'accusation') {
+          return;
+        }
+        const defenseText = await generateAiDialogue(currentGame, targetPlayer, 'defense', {
+          player_name: aiPlayer.displayName,
+        });
+        await GameMessages.insertAsync({
+          gameId,
+          round: currentGame.currentRound,
+          seatIndex: targetPlayer.seatIndex,
+          displayName: targetPlayer.displayName,
+          text: defenseText,
+          createdAt: new Date(),
+        });
+      } catch (err) {
+        console.error('[ai] defense dialogue error:', err);
       }
-      const defenseText = await generateAiDialogue(currentGame, targetPlayer, 'defense', {
-        player_name: aiPlayer.displayName,
-      });
-      await GameMessages.insertAsync({
-        gameId,
-        round: currentGame.currentRound,
-        seatIndex: targetPlayer.seatIndex,
-        displayName: targetPlayer.displayName,
-        text: defenseText,
-        createdAt: new Date(),
-      });
     }, randomDelay(1500, 3000));
   }
 

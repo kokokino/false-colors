@@ -28,6 +28,10 @@ Meteor.methods({
       throw new Meteor.Error('not-in-game', 'You are not in this game');
     }
 
+    if (choice === 'supply' && player.supplies <= 0 && (game.shipSupplies || 0) <= 0) {
+      throw new Meteor.Error('no-supplies', 'No personal or ship supplies remaining');
+    }
+
     // Atomic check-and-push: prevents TOCTOU double-submission race
     const updated = await Games.updateAsync(
       {
@@ -214,17 +218,28 @@ Meteor.methods({
       throw new Meteor.Error('invalid-target', 'Target player not found');
     }
 
-    await Games.updateAsync(gameId, {
-      $set: {
-        accusation: {
-          accuserSeat: accuser.seatIndex,
-          targetSeat: targetSeatIndex,
-          votes: [],
-          resolved: false,
-        },
-        updatedAt: new Date(),
+    // Atomic check-and-set: prevents TOCTOU double-accusation race
+    const updated = await Games.updateAsync(
+      {
+        _id: gameId,
+        currentPhase: GamePhase.ACCUSATION,
+        accusation: null,
       },
-    });
+      {
+        $set: {
+          accusation: {
+            accuserSeat: accuser.seatIndex,
+            targetSeat: targetSeatIndex,
+            votes: [],
+            resolved: false,
+          },
+          updatedAt: new Date(),
+        },
+      }
+    );
+    if (updated === 0) {
+      throw new Meteor.Error('accusation-exists', 'An accusation has already been made this round');
+    }
   },
 
   // Vote on an active accusation

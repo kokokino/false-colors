@@ -18,7 +18,7 @@ export function initSuspicion(gameId, aiSeatIndex, allSeats) {
     state[aiSeatIndex] = {};
   }
   for (const seat of allSeats) {
-    if (seat !== aiSeatIndex) {
+    if (seat !== aiSeatIndex && state[aiSeatIndex][seat] === undefined) {
       state[aiSeatIndex][seat] = 0.0;
     }
   }

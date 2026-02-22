@@ -28,11 +28,13 @@ export const TollSelection = {
       m('div.toll-options', [
         m('button', {
           onclick: () => this.submitToll(game._id, 'supply'),
-          disabled: myPlayer.supplies <= 0,
+          disabled: myPlayer.supplies <= 0 && (game.shipSupplies || 0) <= 0,
         }, [
           m('strong', 'Lose 1 Supply'),
           m('br'),
-          m('small', `Current: ${myPlayer.supplies}`),
+          m('small', myPlayer.supplies > 0
+            ? `Personal: ${myPlayer.supplies}`
+            : `Ship stores: ${game.shipSupplies || 0}`),
         ]),
 
         m('button.secondary', {

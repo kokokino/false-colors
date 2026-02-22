@@ -11,6 +11,7 @@ const GameContent = {
   oninit(vnode) {
     this.room = null;
     this.sub = null;
+    this.subReady = false;
     this.computation = null;
   },
 
@@ -19,6 +20,7 @@ const GameContent = {
 
     this.sub = Meteor.subscribe('rooms.current', roomId);
     this.computation = Tracker.autorun(() => {
+      this.subReady = this.sub.ready();
       this.room = GameRooms.findOne(roomId);
       m.redraw();
     });
@@ -37,6 +39,13 @@ const GameContent = {
     const room = this.room;
 
     if (!room) {
+      if (this.subReady) {
+        return m('div', [
+          m('h2', 'Room not found'),
+          m('p', 'This room may have been closed.'),
+          m('a', { href: '/', oncreate: m.route.link }, 'Return to lobby'),
+        ]);
+      }
       return m('div.loading');
     }
 

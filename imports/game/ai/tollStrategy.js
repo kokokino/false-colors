@@ -6,6 +6,7 @@ import { Personalities } from './personalities.js';
 // Loyal AI toll choice
 export function chooseLoyalToll(player, game, personality) {
   const traits = personality.traits;
+  const shipSupplies = game.shipSupplies || 0;
 
   // If player has plenty of supplies and doom is high, sacrifice supply
   if (player.supplies >= 2 && game.doomLevel > game.doomThreshold * 0.5) {
@@ -23,6 +24,11 @@ export function chooseLoyalToll(player, game, personality) {
 
   // Mid-game: prefer supply if available, else curse over doom
   if (player.supplies >= 2) {
+    return 'supply';
+  }
+
+  // Personal supplies low — fall back to ship stores if doom is critical
+  if (player.supplies <= 0 && shipSupplies > 0 && game.doomLevel > game.doomThreshold * 0.7) {
     return 'supply';
   }
 
@@ -69,5 +75,12 @@ export function choosePhantomToll(player, game, personality, round) {
   if (Math.random() < 0.08 && player.curses.length < 2) {
     return 'curse';
   }
+
+  // Subtle sabotage: drain ship stores when personal supplies are empty
+  const shipSupplies = game.shipSupplies || 0;
+  if (player.supplies <= 0 && shipSupplies > 0 && Math.random() < 0.4) {
+    return 'supply';
+  }
+
   return 'doom';
 }

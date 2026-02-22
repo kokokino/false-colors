@@ -1,3 +1,5 @@
+import { Random } from 'meteor/random';
+
 // Threat deck for Phantom Tides
 // Each threat has a type, strength threshold, doom-per-round if unresolved, and flavor
 
@@ -65,7 +67,7 @@ export function drawThreats(deck, round) {
     const threat = deck.shift();
     drawn.push({
       ...threat,
-      id: `threat_${Date.now()}_${i}`,
+      id: Random.id(),
       progress: 0,
       roundAdded: round,
     });

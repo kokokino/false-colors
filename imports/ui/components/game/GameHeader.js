@@ -30,6 +30,10 @@ export const GameHeader = {
           : null,
       ]),
       m(DoomTracker, { doomLevel: game.doomLevel, doomThreshold: game.doomThreshold }),
+      m('div.ship-supplies', [
+        m('span', 'Ship Stores'),
+        m('span', `${game.shipSupplies ?? 0} / 10`),
+      ]),
     ]);
   },
 };

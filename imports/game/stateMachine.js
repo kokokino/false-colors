@@ -332,7 +332,7 @@ export async function resolveActionPhase(gameId) {
     // Lookout passive: reveal one other player's action early
     let lookoutReveal = null;
     const lookout = game.players.find(p => p.role === 'lookout');
-    if (lookout && lookout.hasNextAction) {
+    if (lookout) {
       const hasNoLookout = lookout.curses.some(c => c.effect === 'noLookout');
       if (!hasNoLookout) {
         const otherSubmissions = allSubmissions.filter(s => s.seatIndex !== lookout.seatIndex);

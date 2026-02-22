@@ -1,7 +1,7 @@
 import { Roles } from './roles.js';
 import { drawCurse } from './curses.js';
 import { getActionStrength } from './roles.js';
-import { GameResult } from '../lib/collections/games.js';
+import { Alignment, GameResult } from '../lib/collections/games.js';
 
 // Find role definition by id
 function getRoleById(roleId) {
@@ -12,6 +12,7 @@ function getRoleById(roleId) {
 // Each player chose: 'supply' (lose 1 supply), 'doom' (add 1 doom), or 'curse' (draw curse)
 export function resolveTolls(game, submissions) {
   let doomIncrease = 0;
+  let shipSupplies = game.shipSupplies || 0;
   const updatedPlayers = [...game.players.map(p => ({ ...p }))];
 
   for (const sub of submissions) {
@@ -27,10 +28,14 @@ export function resolveTolls(game, submissions) {
 
     switch (sub.choice) {
       case 'supply':
-        updatedPlayers[playerIndex] = {
-          ...player,
-          supplies: Math.max(player.supplies - 1, 0),
-        };
+        if (player.supplies > 0) {
+          updatedPlayers[playerIndex] = {
+            ...player,
+            supplies: player.supplies - 1,
+          };
+        } else if (shipSupplies > 0) {
+          shipSupplies -= 1;
+        }
         if (hasMadness) {
           doomIncrease += 1;
         }
@@ -57,6 +62,7 @@ export function resolveTolls(game, submissions) {
   return {
     players: updatedPlayers,
     doomLevel: Math.min(game.doomLevel + doomIncrease, game.doomThreshold + 10),
+    shipSupplies,
   };
 }
 
@@ -135,7 +141,7 @@ export function resolveAccusation(game, accusation) {
     }
   }
 
-  // Need majority to convict
+  // Strict majority required — ties result in acquittal
   const convicted = votesFor > votesAgainst;
 
   if (!convicted) {
@@ -144,7 +150,7 @@ export function resolveAccusation(game, accusation) {
 
   // Check if target is actually the phantom
   const target = game.players.find(p => p.seatIndex === targetSeat);
-  const correct = target && target.alignment === 'phantom';
+  const correct = target && target.alignment === Alignment.PHANTOM;
 
   if (!correct) {
     // Wrong accusation — accuser loses next action
@@ -169,7 +175,7 @@ export function resolveAccusation(game, accusation) {
 export function checkGameEnd(game) {
   // Doom reached threshold — phantom wins (or everyone loses)
   if (game.doomLevel >= game.doomThreshold) {
-    const hasPhantom = game.players.some(p => p.alignment === 'phantom');
+    const hasPhantom = game.players.some(p => p.alignment === Alignment.PHANTOM);
     return {
       ended: true,
       result: hasPhantom ? GameResult.PHANTOM_WIN : GameResult.DOOM_LOSS,
