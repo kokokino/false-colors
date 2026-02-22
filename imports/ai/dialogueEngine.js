@@ -50,7 +50,7 @@ function buildSlotData(game, aiPlayer) {
     (curr.doomPerRound > (prev?.doomPerRound || 0)) ? curr : prev
   , null);
 
-  const roundsLeft = game.maxRounds - game.currentRound;
+  const roundsLeft = Math.max(0, game.maxRounds - game.currentRound);
 
   return {
     threat_name: highestThreat?.name || 'the unknown threat',

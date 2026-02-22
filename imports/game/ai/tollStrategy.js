@@ -41,6 +41,10 @@ export function choosePhantomToll(player, game, personality, round) {
 
   // Early game (first 30%): cooperate to blend in
   if (gameProgress < 0.3) {
+    // Occasionally pick curse to match loyal AI behavior
+    if (Math.random() < 0.1 && player.curses.length < 2) {
+      return 'curse';
+    }
     if (player.supplies >= 2) {
       return 'supply';
     }
@@ -61,6 +65,9 @@ export function choosePhantomToll(player, game, personality, round) {
     return 'doom';
   }
 
-  // Late game (60%+): always doom to push toward threshold
+  // Late game (60%+): mostly doom, but occasionally curse to avoid statistical detection
+  if (Math.random() < 0.08 && player.curses.length < 2) {
+    return 'curse';
+  }
   return 'doom';
 }

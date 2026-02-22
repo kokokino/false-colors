@@ -42,7 +42,7 @@ DDPRateLimiter.addRule({
   type: 'method',
   name: 'game.sendMessage',
   userId: () => true
-}, 10, 10000);
+}, 5, 10000);
 
 DDPRateLimiter.addRule({
   type: 'method',

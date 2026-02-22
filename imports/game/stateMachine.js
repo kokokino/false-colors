@@ -439,12 +439,15 @@ export async function resolveAccusationPhase(gameId) {
       correct: result.correct,
     });
 
-    // On acquittal, reduce suspicion of the target for AI observers
+    // On acquittal, reduce suspicion of the target and increase suspicion of the accuser
     if (!result.correct) {
       const aiPlayers = game.players.filter(p => p.isAI);
       for (const ai of aiPlayers) {
         if (ai.seatIndex !== game.accusation.targetSeat) {
           updateSuspicion(game._id, ai.seatIndex, game.accusation.targetSeat, 'defended_self_well');
+        }
+        if (ai.seatIndex !== game.accusation.accuserSeat) {
+          updateSuspicion(game._id, ai.seatIndex, game.accusation.accuserSeat, 'accused_loyal');
         }
       }
     }
@@ -588,6 +591,10 @@ function updateSuspicionFromTolls(game, submissions) {
 // but targeting a lower-strength threat near completion is valid cooperative play.
 // Phase 2 TODO: factor in threat progress to avoid false suspicion on loyal players.
 function updateSuspicionFromActions(game, submissions) {
+  if (game.activeThreats.length === 0) {
+    return;
+  }
+
   const aiPlayers = game.players.filter(p => p.isAI);
   for (const ai of aiPlayers) {
     for (const sub of submissions) {

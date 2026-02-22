@@ -17,7 +17,7 @@ function randomDelay(min, max) {
 // Schedule AI actions for a given phase with human-like delays
 export function scheduleAiActions(gameId, phase) {
   // Run async — don't block the caller
-  scheduleAsync(gameId, phase);
+  scheduleAsync(gameId, phase).catch(err => console.error('[ai] schedule error:', err));
 }
 
 async function scheduleAsync(gameId, phase) {
@@ -38,7 +38,9 @@ async function scheduleAsync(gameId, phase) {
     case 'toll':
       for (const ai of aiPlayers) {
         const delay = randomDelay(1000, 3000);
-        Meteor.setTimeout(() => submitAiToll(gameId, ai), delay);
+        Meteor.setTimeout(() => {
+          submitAiToll(gameId, ai).catch(err => console.error('[ai] toll error:', err));
+        }, delay);
       }
       break;
 
@@ -51,14 +53,18 @@ async function scheduleAsync(gameId, phase) {
     case 'action':
       for (const ai of aiPlayers) {
         const delay = randomDelay(1000, 3000);
-        Meteor.setTimeout(() => submitAiAction(gameId, ai), delay);
+        Meteor.setTimeout(() => {
+          submitAiAction(gameId, ai).catch(err => console.error('[ai] action error:', err));
+        }, delay);
       }
       break;
 
     case 'accusation':
       for (const ai of aiPlayers) {
         const delay = randomDelay(2000, 5000);
-        Meteor.setTimeout(() => handleAiAccusation(gameId, ai), delay);
+        Meteor.setTimeout(() => {
+          handleAiAccusation(gameId, ai).catch(err => console.error('[ai] accusation error:', err));
+        }, delay);
       }
       break;
   }

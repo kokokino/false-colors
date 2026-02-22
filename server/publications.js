@@ -78,6 +78,12 @@ Meteor.publish('game', async function(gameId) {
     return this.ready();
   }
 
+  // Verify caller is a player in this game
+  const membership = await Games.findOneAsync({ _id: gameId, 'players.userId': this.userId });
+  if (!membership) {
+    return this.ready();
+  }
+
   const sub = this;
   const handle = await Games.find({ _id: gameId }).observeChanges({
     added(id, fields) {
@@ -117,9 +123,14 @@ function stripSecrets(fields) {
 }
 
 // Game messages publication — no isAI field exists, so messages are identical for all senders
-Meteor.publish('gameMessages', function(gameId) {
+Meteor.publish('gameMessages', async function(gameId) {
   check(gameId, String);
   if (!this.userId) {
+    return this.ready();
+  }
+  // Verify caller is a player in this game
+  const membership = await Games.findOneAsync({ _id: gameId, 'players.userId': this.userId });
+  if (!membership) {
     return this.ready();
   }
   return GameMessages.find(
@@ -129,9 +140,14 @@ Meteor.publish('gameMessages', function(gameId) {
 });
 
 // Game log publication — all events visible
-Meteor.publish('gameLog', function(gameId) {
+Meteor.publish('gameLog', async function(gameId) {
   check(gameId, String);
   if (!this.userId) {
+    return this.ready();
+  }
+  // Verify caller is a player in this game
+  const membership = await Games.findOneAsync({ _id: gameId, 'players.userId': this.userId });
+  if (!membership) {
     return this.ready();
   }
   return GameLog.find(

@@ -28,21 +28,26 @@ Meteor.methods({
       throw new Meteor.Error('not-in-game', 'You are not in this game');
     }
 
-    // Check not already submitted
-    const alreadySubmitted = game.tollSubmissions.some(s => s.seatIndex === player.seatIndex);
-    if (alreadySubmitted) {
+    // Atomic check-and-push: prevents TOCTOU double-submission race
+    const updated = await Games.updateAsync(
+      {
+        _id: gameId,
+        currentPhase: GamePhase.TOLL,
+        'tollSubmissions.seatIndex': { $ne: player.seatIndex },
+      },
+      {
+        $push: {
+          tollSubmissions: {
+            seatIndex: player.seatIndex,
+            choice,
+          },
+        },
+        $set: { updatedAt: new Date() },
+      }
+    );
+    if (updated === 0) {
       throw new Meteor.Error('already-submitted', 'You already submitted your toll');
     }
-
-    await Games.updateAsync(gameId, {
-      $push: {
-        tollSubmissions: {
-          seatIndex: player.seatIndex,
-          choice,
-        },
-      },
-      $set: { updatedAt: new Date() },
-    });
 
     // Check if all players have submitted
     const updatedGame = await Games.findOneAsync(gameId);
@@ -84,21 +89,26 @@ Meteor.methods({
       throw new Meteor.Error('invalid-threat', 'Threat not found');
     }
 
-    // Check not already submitted
-    const alreadySubmitted = game.actionSubmissions.some(s => s.seatIndex === player.seatIndex);
-    if (alreadySubmitted) {
+    // Atomic check-and-push: prevents TOCTOU double-submission race
+    const updated = await Games.updateAsync(
+      {
+        _id: gameId,
+        currentPhase: GamePhase.ACTION,
+        'actionSubmissions.seatIndex': { $ne: player.seatIndex },
+      },
+      {
+        $push: {
+          actionSubmissions: {
+            seatIndex: player.seatIndex,
+            threatId,
+          },
+        },
+        $set: { updatedAt: new Date() },
+      }
+    );
+    if (updated === 0) {
       throw new Meteor.Error('already-submitted', 'You already submitted your action');
     }
-
-    await Games.updateAsync(gameId, {
-      $push: {
-        actionSubmissions: {
-          seatIndex: player.seatIndex,
-          threatId,
-        },
-      },
-      $set: { updatedAt: new Date() },
-    });
 
     // Check if all players with actions have submitted
     const updatedGame = await Games.findOneAsync(gameId);
@@ -245,24 +255,28 @@ Meteor.methods({
       throw new Meteor.Error('cannot-vote', 'The accuser and target cannot vote');
     }
 
-    // Check not already voted
-    const alreadyVoted = game.accusation.votes.some(v => v.seatIndex === voter.seatIndex);
-    if (alreadyVoted) {
+    // Atomic check-and-push: prevents TOCTOU double-vote race
+    const updated = await Games.updateAsync(
+      {
+        _id: gameId,
+        'accusation.resolved': false,
+        'accusation.votes.seatIndex': { $ne: voter.seatIndex },
+      },
+      {
+        $push: {
+          'accusation.votes': { seatIndex: voter.seatIndex, guilty },
+        },
+        $set: { updatedAt: new Date() },
+      }
+    );
+    if (updated === 0) {
       throw new Meteor.Error('already-voted', 'You already voted');
     }
 
-    const newVotes = [...game.accusation.votes, { seatIndex: voter.seatIndex, guilty }];
-
-    await Games.updateAsync(gameId, {
-      $set: {
-        'accusation.votes': newVotes,
-        updatedAt: new Date(),
-      },
-    });
-
     // Check if all eligible voters have voted (total players - accuser - target)
-    const eligibleVoters = game.players.length - 2;
-    if (newVotes.length >= eligibleVoters) {
+    const updatedGame = await Games.findOneAsync(gameId);
+    const eligibleVoters = updatedGame.players.length - 2;
+    if (updatedGame.accusation.votes.length >= eligibleVoters) {
       await resolveAccusationPhase(gameId);
     }
   },
