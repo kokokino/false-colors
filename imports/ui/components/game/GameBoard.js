@@ -1,7 +1,7 @@
 import m from 'mithril';
 import { Meteor } from 'meteor/meteor';
 import { Tracker } from 'meteor/tracker';
-import { Games, GameMessages, GameLog } from '../../../lib/collections/games.js';
+import { Games, GameMessages, GameLog, GameConstants } from '../../../lib/collections/games.js';
 import { GameHeader } from './GameHeader.js';
 import { ThreatDisplay } from './ThreatDisplay.js';
 import { PlayerPanel } from './PlayerPanel.js';
@@ -68,7 +68,7 @@ export const GameBoard = {
       if (this.game?.roomId) {
         Meteor.callAsync('rooms.touch', this.game.roomId).catch(err => console.warn('[heartbeat]', err.message));
       }
-    }, 120000); // 2 minutes
+    }, GameConstants.HEARTBEAT_MS);
   },
 
   view(vnode) {

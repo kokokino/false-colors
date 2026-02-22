@@ -1,7 +1,7 @@
 import { Meteor } from 'meteor/meteor';
 import { check, Match } from 'meteor/check';
 import { Games, GameMessages } from '../imports/api/collections.js';
-import { GamePhase } from '../imports/lib/collections/games.js';
+import { GamePhase, GameConstants } from '../imports/lib/collections/games.js';
 import { resolveTollPhase, resolveActionPhase, resolveAccusationPhase } from '../imports/game/stateMachine.js';
 
 Meteor.methods({
@@ -135,8 +135,8 @@ Meteor.methods({
     if (trimmedText.length === 0) {
       throw new Meteor.Error('invalid-message', 'Message cannot be empty');
     }
-    if (trimmedText.length > 300) {
-      throw new Meteor.Error('invalid-message', 'Message too long (max 300 characters)');
+    if (trimmedText.length > GameConstants.CHAT_MAX_LENGTH) {
+      throw new Meteor.Error('invalid-message', `Message too long (max ${GameConstants.CHAT_MAX_LENGTH} characters)`);
     }
 
     const game = await Games.findOneAsync(gameId);
@@ -166,7 +166,7 @@ Meteor.methods({
       }
     }
 
-    await GameMessages.insertAsync({
+    const messageId = await GameMessages.insertAsync({
       gameId,
       round: game.currentRound,
       seatIndex: player.seatIndex,
@@ -174,6 +174,20 @@ Meteor.methods({
       text: trimmedText,
       createdAt: new Date(),
     });
+
+    // Post-insert guard: if two rapid calls both passed the pre-insert check,
+    // remove the just-inserted message when the count exceeds the limit.
+    if (hasSpectralChill) {
+      const postCount = await GameMessages.find({
+        gameId,
+        round: game.currentRound,
+        seatIndex: player.seatIndex,
+      }).countAsync();
+      if (postCount > 1) {
+        await GameMessages.removeAsync(messageId);
+        throw new Meteor.Error('curse-limit', 'Spectral Chill limits you to 1 message per discussion');
+      }
+    }
   },
 
   // Make an accusation during ACCUSATION phase

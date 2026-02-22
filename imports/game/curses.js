@@ -42,7 +42,7 @@ export const Curses = [
     name: 'Spectral Chill',
     effect: 'discussionPenalty',
     value: true,
-    description: 'Your discussion time is halved.',
+    description: 'You can only send 1 message per discussion round.',
   },
 ];
 

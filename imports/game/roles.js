@@ -26,6 +26,8 @@ export const Roles = {
     offStrength: 1,
     description: 'Expert at treating illness outbreaks.',
   },
+  // Deviation from original "strength 2 generalist" spec: hull_breach specialty
+  // gives QM a clear identity while offStrength 2 preserves generalist flexibility.
   QUARTERMASTER: {
     id: 'quartermaster',
     name: 'Quartermaster',

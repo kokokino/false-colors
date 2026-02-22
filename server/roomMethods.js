@@ -1,10 +1,8 @@
 import { Meteor } from 'meteor/meteor';
 import { check } from 'meteor/check';
 import { GameRooms } from '../imports/api/collections.js';
-import { RoomStatus, MIN_PLAYERS, MAX_PLAYERS } from '../imports/lib/collections/games.js';
+import { RoomStatus, MIN_PLAYERS, MAX_PLAYERS, GameConstants } from '../imports/lib/collections/games.js';
 import { startGame } from '../imports/game/stateMachine.js';
-
-const COUNTDOWN_SECONDS = 20;
 
 // Track active countdown timers by roomId
 const countdownTimers = new Map();
@@ -36,7 +34,7 @@ function startCountdown(roomId) {
 
     // Start the game (creates Games doc, assigns characters, fills AI)
     await startGame(roomId, totalNeeded);
-  }, COUNTDOWN_SECONDS * 1000);
+  }, GameConstants.COUNTDOWN_SECONDS * 1000);
 
   countdownTimers.set(roomId, timerId);
 }

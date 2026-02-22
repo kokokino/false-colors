@@ -81,5 +81,3 @@ export const Personalities = {
     description: 'Speaks in omens and prayers. Deeply superstitious.',
   },
 };
-
-export const PersonalityList = Object.values(Personalities);

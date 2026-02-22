@@ -1,5 +1,6 @@
 import m from 'mithril';
 import { Meteor } from 'meteor/meteor';
+import { GameConstants } from '../../../lib/collections/games.js';
 
 // In-game discussion chat during DISCUSSION phase
 // Attrs: game, myPlayer, messages (array)
@@ -56,7 +57,7 @@ export const DiscussionChat = {
             value: this.newMessage,
             oninput: (e) => { this.newMessage = e.target.value; },
             disabled: this.sending,
-            maxlength: 300,
+            maxlength: GameConstants.CHAT_MAX_LENGTH,
           }),
           m('button[type=submit]', { disabled: this.sending || !this.newMessage.trim() }, 'Send'),
         ]),

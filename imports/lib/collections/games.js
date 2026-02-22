@@ -35,3 +35,14 @@ export const GameResult = {
 
 export const MIN_PLAYERS = 4;
 export const MAX_PLAYERS = 6;
+
+export const GameConstants = {
+  COUNTDOWN_SECONDS: 20,
+  HEARTBEAT_MS: 120000,
+  CHAT_MAX_LENGTH: 300,
+  AI_DELAY_TOLL: { min: 1000, max: 3000 },
+  AI_DELAY_ACTION: { min: 1000, max: 3000 },
+  AI_DELAY_DISCUSSION: { min: 3000, max: 8000 },
+  AI_DELAY_ACCUSATION: { min: 2000, max: 5000 },
+  DISCUSSION_MAX_DELAY: 25000,
+};

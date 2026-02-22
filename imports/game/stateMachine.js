@@ -1,7 +1,7 @@
 import { Meteor } from 'meteor/meteor';
 import { GameRooms, Games, GameLog } from '../api/collections.js';
 import { GamePhase, Alignment, GameResult, RoomStatus } from '../lib/collections/games.js';
-import { RoleList, Roles, getActionStrength } from './roles.js';
+import { Roles, getActionStrength } from './roles.js';
 import { createThreatDeck, drawThreats } from './threats.js';
 import { shuffleRoster } from './ai/aiNames.js';
 import { Personalities } from './ai/personalities.js';

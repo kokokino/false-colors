@@ -81,7 +81,10 @@ async function callOpenRouter(baseUrl, apiKey, model, prompt, maxTokens, tempera
       throw new Error(`OpenRouter returned ${response.status}: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await Promise.race([
+      response.json(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('response.json() timed out')), 5000)),
+    ]);
     const text = data.choices?.[0]?.message?.content?.trim();
 
     if (!text) {

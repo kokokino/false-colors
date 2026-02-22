@@ -1,5 +1,6 @@
 import { Meteor } from 'meteor/meteor';
 import { Personalities } from '../game/ai/personalities.js';
+import { Roles, getActionStrength } from '../game/roles.js';
 import { getTemplate, fillSlots } from './templates/phantomTides.js';
 import { callStyleTransfer } from './llmProxy.js';
 
@@ -45,6 +46,39 @@ function getMaxCalls() {
   return settings.maxCallsPerGame || 20;
 }
 
+// Find the best player to mention: the specialist for the highest-doom threat (excluding self),
+// falling back to a random other player.
+function pickRelevantPlayer(game, aiPlayer) {
+  const others = game.players.filter(p => p.seatIndex !== aiPlayer.seatIndex);
+  if (others.length === 0) {
+    return 'someone';
+  }
+
+  const highestThreat = game.activeThreats.reduce((prev, curr) =>
+    (curr.doomPerRound > (prev?.doomPerRound || 0)) ? curr : prev
+  , null);
+
+  if (highestThreat) {
+    let bestPlayer = null;
+    let bestStrength = 0;
+    for (const player of others) {
+      const role = Object.values(Roles).find(r => r.id === player.role);
+      if (role) {
+        const strength = getActionStrength(role, highestThreat.type);
+        if (strength > bestStrength) {
+          bestStrength = strength;
+          bestPlayer = player;
+        }
+      }
+    }
+    if (bestPlayer) {
+      return bestPlayer.displayName;
+    }
+  }
+
+  return others[Math.floor(Math.random() * others.length)].displayName;
+}
+
 function buildSlotData(game, aiPlayer) {
   const highestThreat = game.activeThreats.reduce((prev, curr) =>
     (curr.doomPerRound > (prev?.doomPerRound || 0)) ? curr : prev
@@ -56,7 +90,7 @@ function buildSlotData(game, aiPlayer) {
     threat_name: highestThreat?.name || 'the unknown threat',
     threshold: highestThreat?.threshold?.toString() || '?',
     doom_per_round: highestThreat?.doomPerRound?.toString() || '?',
-    player_name: game.players.find(p => p.seatIndex !== aiPlayer.seatIndex)?.displayName || 'someone',
+    player_name: pickRelevantPlayer(game, aiPlayer),
     rounds_left: roundsLeft.toString(),
     doom_level: game.doomLevel.toString(),
     doom_threshold: game.doomThreshold.toString(),

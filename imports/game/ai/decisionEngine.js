@@ -1,6 +1,6 @@
 import { Meteor } from 'meteor/meteor';
 import { Games, GameMessages } from '../../api/collections.js';
-import { Alignment } from '../../lib/collections/games.js';
+import { Alignment, GameConstants } from '../../lib/collections/games.js';
 import { Personalities } from './personalities.js';
 import { chooseLoyalToll, choosePhantomToll } from './tollStrategy.js';
 import { chooseLoyalAction, choosePhantomAction } from './actionStrategy.js';
@@ -37,7 +37,7 @@ async function scheduleAsync(gameId, phase) {
   switch (phase) {
     case 'toll':
       for (const ai of aiPlayers) {
-        const delay = randomDelay(1000, 3000);
+        const delay = randomDelay(GameConstants.AI_DELAY_TOLL.min, GameConstants.AI_DELAY_TOLL.max);
         Meteor.setTimeout(() => {
           submitAiToll(gameId, ai).catch(err => console.error('[ai] toll error:', err));
         }, delay);
@@ -52,7 +52,7 @@ async function scheduleAsync(gameId, phase) {
 
     case 'action':
       for (const ai of aiPlayers) {
-        const delay = randomDelay(1000, 3000);
+        const delay = randomDelay(GameConstants.AI_DELAY_ACTION.min, GameConstants.AI_DELAY_ACTION.max);
         Meteor.setTimeout(() => {
           submitAiAction(gameId, ai).catch(err => console.error('[ai] action error:', err));
         }, delay);
@@ -61,7 +61,7 @@ async function scheduleAsync(gameId, phase) {
 
     case 'accusation':
       for (const ai of aiPlayers) {
-        const delay = randomDelay(2000, 5000);
+        const delay = randomDelay(GameConstants.AI_DELAY_ACCUSATION.min, GameConstants.AI_DELAY_ACCUSATION.max);
         Meteor.setTimeout(() => {
           handleAiAccusation(gameId, ai).catch(err => console.error('[ai] accusation error:', err));
         }, delay);
@@ -165,10 +165,10 @@ function scheduleAiDiscussion(gameId, aiPlayer, game) {
     : personality.traits.chatFrequency > 0.6 ? 2 + Math.floor(Math.random() * 2) : 1;
 
   for (let i = 0; i < messageCount; i++) {
-    const delay = randomDelay(3000, 8000) + (i * randomDelay(3000, 6000));
+    const delay = randomDelay(GameConstants.AI_DELAY_DISCUSSION.min, GameConstants.AI_DELAY_DISCUSSION.max) + (i * randomDelay(3000, 6000));
 
     // Cap total delay at discussion phase duration minus buffer
-    if (delay > 25000) {
+    if (delay > GameConstants.DISCUSSION_MAX_DELAY) {
       break;
     }
 
