@@ -1,6 +1,7 @@
 // AI accusation and voting strategy
 // Loyal: accuse when suspicion is high enough. Phantom: deflect.
 
+import { Alignment } from '../../lib/collections/games.js';
 import { getMostSuspicious, getSuspicion } from './suspicionTracker.js';
 
 // Decide whether loyal AI should make an accusation
@@ -35,7 +36,7 @@ export function shouldPhantomAccuse(aiPlayer, game, personality) {
   if (gameProgress > 0.4 && Math.random() < 0.25) {
     // Pick a loyal player to accuse (not self)
     const loyalTargets = game.players.filter(p =>
-      p.seatIndex !== aiPlayer.seatIndex && p.alignment === 'loyal'
+      p.seatIndex !== aiPlayer.seatIndex && p.alignment === Alignment.LOYAL
     );
     if (loyalTargets.length > 0) {
       const target = loyalTargets[Math.floor(Math.random() * loyalTargets.length)];
@@ -51,9 +52,9 @@ export function voteOnAccusation(aiPlayer, game, accusation, personality) {
   const traits = personality.traits;
 
   // If AI is the phantom and the target is NOT the phantom, vote guilty to create chaos
-  if (aiPlayer.alignment === 'phantom') {
+  if (aiPlayer.alignment === Alignment.PHANTOM) {
     const target = game.players.find(p => p.seatIndex === accusation.targetSeat);
-    if (target && target.alignment !== 'phantom') {
+    if (target && target.alignment !== Alignment.PHANTOM) {
       return Math.random() < 0.6; // Usually vote guilty against innocents
     }
     // Target IS the phantom (self or ally situation) — vote not guilty

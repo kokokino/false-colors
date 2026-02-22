@@ -11,6 +11,9 @@ import { scheduleAiActions } from './ai/decisionEngine.js';
 import { clearSuspicion, updateSuspicion } from './ai/suspicionTracker.js';
 import { registerResolver } from './resolverRegistry.js';
 
+// In-memory lock to prevent concurrent phase resolution (race between timer, AI, and human callers)
+const resolveLocks = new Map();
+
 const DEFAULT_DOOM_THRESHOLD = 15;
 const DEFAULT_MAX_ROUNDS = 10;
 const DEFAULT_STARTING_SUPPLIES = 3;
@@ -222,40 +225,49 @@ async function runTollPhase(gameId) {
 
 // Resolve tolls when all submitted or timer expires
 export async function resolveTollPhase(gameId) {
-  const game = await Games.findOneAsync(gameId);
-  if (!game || game.currentPhase !== GamePhase.TOLL) {
+  const lockKey = `toll_${gameId}`;
+  if (resolveLocks.get(lockKey)) {
     return;
   }
-
-  clearPhaseTimer(gameId);
-
-  // Apply default toll (add 1 doom) for any player who didn't submit
-  const submittedSeats = new Set(game.tollSubmissions.map(s => s.seatIndex));
-  const defaultSubmissions = [];
-  for (const player of game.players) {
-    if (!submittedSeats.has(player.seatIndex)) {
-      defaultSubmissions.push({
-        seatIndex: player.seatIndex,
-        choice: 'doom',
-      });
+  resolveLocks.set(lockKey, true);
+  try {
+    const game = await Games.findOneAsync(gameId);
+    if (!game || game.currentPhase !== GamePhase.TOLL) {
+      return;
     }
+
+    clearPhaseTimer(gameId);
+
+    // Apply default toll (add 1 doom) for any player who didn't submit
+    const submittedSeats = new Set(game.tollSubmissions.map(s => s.seatIndex));
+    const defaultSubmissions = [];
+    for (const player of game.players) {
+      if (!submittedSeats.has(player.seatIndex)) {
+        defaultSubmissions.push({
+          seatIndex: player.seatIndex,
+          choice: 'doom',
+        });
+      }
+    }
+
+    const allSubmissions = [...game.tollSubmissions, ...defaultSubmissions];
+    const updates = resolveTolls(game, allSubmissions);
+
+    await Games.updateAsync(gameId, {
+      $set: { ...updates, updatedAt: new Date() },
+    });
+
+    // Update AI suspicion based on toll choices
+    updateSuspicionFromTolls(game, allSubmissions);
+
+    await appendLog(gameId, game.currentRound, GamePhase.TOLL, 'tolls_resolved', {
+      submissions: allSubmissions.length,
+    });
+
+    await advancePhase(gameId);
+  } finally {
+    resolveLocks.delete(lockKey);
   }
-
-  const allSubmissions = [...game.tollSubmissions, ...defaultSubmissions];
-  const updates = resolveTolls(game, allSubmissions);
-
-  await Games.updateAsync(gameId, {
-    $set: { ...updates, updatedAt: new Date() },
-  });
-
-  // Update AI suspicion based on toll choices
-  updateSuspicionFromTolls(game, allSubmissions);
-
-  await appendLog(gameId, game.currentRound, GamePhase.TOLL, 'tolls_resolved', {
-    submissions: allSubmissions.length,
-  });
-
-  await advancePhase(gameId);
 }
 
 // DISCUSSION PHASE — 30s chat window
@@ -287,80 +299,89 @@ async function runActionPhase(gameId) {
 
 // Resolve actions when all submitted or timer expires
 export async function resolveActionPhase(gameId) {
-  const game = await Games.findOneAsync(gameId);
-  if (!game || game.currentPhase !== GamePhase.ACTION) {
+  const lockKey = `action_${gameId}`;
+  if (resolveLocks.get(lockKey)) {
     return;
   }
+  resolveLocks.set(lockKey, true);
+  try {
+    const game = await Games.findOneAsync(gameId);
+    if (!game || game.currentPhase !== GamePhase.ACTION) {
+      return;
+    }
 
-  clearPhaseTimer(gameId);
+    clearPhaseTimer(gameId);
 
-  // Default action: assign to first threat for non-submitters who have actions
-  const submittedSeats = new Set(game.actionSubmissions.map(s => s.seatIndex));
-  const defaultSubmissions = [];
-  for (const player of game.players) {
-    if (!submittedSeats.has(player.seatIndex) && player.hasNextAction) {
-      const defaultThreat = game.activeThreats[0];
-      if (defaultThreat) {
-        defaultSubmissions.push({
-          seatIndex: player.seatIndex,
-          threatId: defaultThreat.id,
-        });
+    // Default action: assign to first threat for non-submitters who have actions
+    const submittedSeats = new Set(game.actionSubmissions.map(s => s.seatIndex));
+    const defaultSubmissions = [];
+    for (const player of game.players) {
+      if (!submittedSeats.has(player.seatIndex) && player.hasNextAction) {
+        const defaultThreat = game.activeThreats[0];
+        if (defaultThreat) {
+          defaultSubmissions.push({
+            seatIndex: player.seatIndex,
+            threatId: defaultThreat.id,
+          });
+        }
       }
     }
-  }
 
-  const allSubmissions = [...game.actionSubmissions, ...defaultSubmissions];
+    const allSubmissions = [...game.actionSubmissions, ...defaultSubmissions];
 
-  // Lookout passive: reveal one other player's action early
-  let lookoutReveal = null;
-  const lookout = game.players.find(p => p.role === 'lookout');
-  if (lookout && lookout.hasNextAction) {
-    const hasNoLookout = lookout.curses.some(c => c.effect === 'noLookout');
-    if (!hasNoLookout) {
-      const otherSubmissions = allSubmissions.filter(s => s.seatIndex !== lookout.seatIndex);
-      if (otherSubmissions.length > 0) {
-        const picked = otherSubmissions[Math.floor(Math.random() * otherSubmissions.length)];
-        const pickedPlayer = game.players.find(p => p.seatIndex === picked.seatIndex);
-        lookoutReveal = {
-          seatIndex: picked.seatIndex,
-          displayName: pickedPlayer?.displayName || 'Unknown',
-          role: pickedPlayer?.role || 'unknown',
-          threatId: picked.threatId,
-        };
+    // Lookout passive: reveal one other player's action early
+    let lookoutReveal = null;
+    const lookout = game.players.find(p => p.role === 'lookout');
+    if (lookout && lookout.hasNextAction) {
+      const hasNoLookout = lookout.curses.some(c => c.effect === 'noLookout');
+      if (!hasNoLookout) {
+        const otherSubmissions = allSubmissions.filter(s => s.seatIndex !== lookout.seatIndex);
+        if (otherSubmissions.length > 0) {
+          const picked = otherSubmissions[Math.floor(Math.random() * otherSubmissions.length)];
+          const pickedPlayer = game.players.find(p => p.seatIndex === picked.seatIndex);
+          lookoutReveal = {
+            seatIndex: picked.seatIndex,
+            displayName: pickedPlayer?.displayName || 'Unknown',
+            role: pickedPlayer?.role || 'unknown',
+            threatId: picked.threatId,
+          };
+        }
       }
     }
+
+    // Reveal all actions simultaneously
+    const revealedActions = allSubmissions.map(sub => {
+      const player = game.players.find(p => p.seatIndex === sub.seatIndex);
+      return {
+        seatIndex: sub.seatIndex,
+        displayName: player?.displayName || 'Unknown',
+        role: player?.role || 'unknown',
+        threatId: sub.threatId,
+      };
+    });
+
+    const updates = resolveActions(game, allSubmissions);
+
+    await Games.updateAsync(gameId, {
+      $set: {
+        lookoutReveal,
+        revealedActions,
+        ...updates,
+        updatedAt: new Date(),
+      },
+    });
+
+    // Update AI suspicion based on action choices
+    updateSuspicionFromActions(game, allSubmissions);
+
+    await appendLog(gameId, game.currentRound, GamePhase.ACTION, 'actions_resolved', {
+      actions: revealedActions,
+    });
+
+    await advancePhase(gameId);
+  } finally {
+    resolveLocks.delete(lockKey);
   }
-
-  // Reveal all actions simultaneously
-  const revealedActions = allSubmissions.map(sub => {
-    const player = game.players.find(p => p.seatIndex === sub.seatIndex);
-    return {
-      seatIndex: sub.seatIndex,
-      displayName: player?.displayName || 'Unknown',
-      role: player?.role || 'unknown',
-      threatId: sub.threatId,
-    };
-  });
-
-  const updates = resolveActions(game, allSubmissions);
-
-  await Games.updateAsync(gameId, {
-    $set: {
-      lookoutReveal,
-      revealedActions,
-      ...updates,
-      updatedAt: new Date(),
-    },
-  });
-
-  // Update AI suspicion based on action choices
-  updateSuspicionFromActions(game, allSubmissions);
-
-  await appendLog(gameId, game.currentRound, GamePhase.ACTION, 'actions_resolved', {
-    actions: revealedActions,
-  });
-
-  await advancePhase(gameId);
 }
 
 // ACCUSATION PHASE — optional player-initiated
@@ -388,37 +409,56 @@ async function runAccusationPhase(gameId) {
 
 // Resolve accusation vote
 export async function resolveAccusationPhase(gameId) {
-  const game = await Games.findOneAsync(gameId);
-  if (!game || !game.accusation) {
+  const lockKey = `accusation_${gameId}`;
+  if (resolveLocks.get(lockKey)) {
+    return;
+  }
+  resolveLocks.set(lockKey, true);
+  try {
+    const game = await Games.findOneAsync(gameId);
+    if (!game || !game.accusation) {
+      await advancePhase(gameId);
+      return;
+    }
+
+    clearPhaseTimer(gameId);
+
+    const result = resolveAccusation(game, game.accusation);
+
+    await Games.updateAsync(gameId, {
+      $set: {
+        accusation: { ...game.accusation, resolved: true, ...result },
+        players: result.updatedPlayers || game.players,
+        updatedAt: new Date(),
+      },
+    });
+
+    await appendLog(gameId, game.currentRound, GamePhase.ACCUSATION, 'accusation_resolved', {
+      accuserSeat: game.accusation.accuserSeat,
+      targetSeat: game.accusation.targetSeat,
+      correct: result.correct,
+    });
+
+    // On acquittal, reduce suspicion of the target for AI observers
+    if (!result.correct) {
+      const aiPlayers = game.players.filter(p => p.isAI);
+      for (const ai of aiPlayers) {
+        if (ai.seatIndex !== game.accusation.targetSeat) {
+          updateSuspicion(game._id, ai.seatIndex, game.accusation.targetSeat, 'defended_self_well');
+        }
+      }
+    }
+
+    // Check if phantom was caught — game might end
+    if (result.correct) {
+      await finishGame(gameId, GameResult.LOYAL_WIN, 'phantom_caught');
+      return;
+    }
+
     await advancePhase(gameId);
-    return;
+  } finally {
+    resolveLocks.delete(lockKey);
   }
-
-  clearPhaseTimer(gameId);
-
-  const result = resolveAccusation(game, game.accusation);
-
-  await Games.updateAsync(gameId, {
-    $set: {
-      accusation: { ...game.accusation, resolved: true, ...result },
-      players: result.updatedPlayers || game.players,
-      updatedAt: new Date(),
-    },
-  });
-
-  await appendLog(gameId, game.currentRound, GamePhase.ACCUSATION, 'accusation_resolved', {
-    accuserSeat: game.accusation.accuserSeat,
-    targetSeat: game.accusation.targetSeat,
-    correct: result.correct,
-  });
-
-  // Check if phantom was caught — game might end
-  if (result.correct) {
-    await finishGame(gameId, GameResult.LOYAL_WIN, 'phantom_caught');
-    return;
-  }
-
-  await advancePhase(gameId);
 }
 
 // ROUND END PHASE — check win/loss, increment round
@@ -428,29 +468,21 @@ async function runRoundEndPhase(gameId) {
     return;
   }
 
-  // Apply Cook's passive heal
-  const cookPlayer = game.players.find(p => p.role === 'cook');
-  if (cookPlayer) {
-    const updatedPlayers = game.players.map(p => ({
-      ...p,
-      supplies: Math.min(p.supplies + 1, DEFAULT_STARTING_SUPPLIES_MAX),
-    }));
-    await Games.updateAsync(gameId, {
-      $set: { players: updatedPlayers },
-    });
-  }
-
-  // Apply curse drain effects
-  const gameAfterCook = await Games.findOneAsync(gameId);
-  const drainedPlayers = gameAfterCook.players.map(p => {
+  // Apply Cook's passive heal and curse drain in a single pass
+  const hasCook = game.players.some(p => p.role === 'cook');
+  const updatedPlayers = game.players.map(p => {
+    let supplies = p.supplies;
+    if (hasCook) {
+      supplies = Math.min(supplies + 1, DEFAULT_STARTING_SUPPLIES_MAX);
+    }
     const hasDrain = p.curses.some(c => c.effect === 'supplyDrain');
     if (hasDrain) {
-      return { ...p, supplies: Math.max(p.supplies - 1, 0) };
+      supplies = Math.max(supplies - 1, 0);
     }
-    return p;
+    return { ...p, supplies };
   });
   await Games.updateAsync(gameId, {
-    $set: { players: drainedPlayers, updatedAt: new Date() },
+    $set: { players: updatedPlayers, updatedAt: new Date() },
   });
 
   // Check game end conditions
@@ -552,6 +584,9 @@ function updateSuspicionFromTolls(game, submissions) {
 }
 
 // Update AI suspicion scores based on action results
+// NOTE: This flags players who don't target their highest-strength threat as suboptimal,
+// but targeting a lower-strength threat near completion is valid cooperative play.
+// Phase 2 TODO: factor in threat progress to avoid false suspicion on loyal players.
 function updateSuspicionFromActions(game, submissions) {
   const aiPlayers = game.players.filter(p => p.isAI);
   for (const ai of aiPlayers) {

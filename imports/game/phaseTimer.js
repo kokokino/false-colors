@@ -22,9 +22,13 @@ export function startPhaseTimer(gameId, phase, onExpire) {
     return;
   }
 
-  const timerId = Meteor.setTimeout(() => {
+  const timerId = Meteor.setTimeout(async () => {
     phaseTimers.delete(gameId);
-    onExpire(gameId);
+    try {
+      await onExpire(gameId);
+    } catch (error) {
+      console.error(`[phaseTimer] onExpire error for game ${gameId}:`, error);
+    }
   }, duration);
 
   phaseTimers.set(gameId, timerId);

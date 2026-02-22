@@ -47,8 +47,11 @@ export function choosePhantomToll(player, game, personality, round) {
     return 'doom';
   }
 
-  // Mid game (30-60%): start choosing doom more often
+  // Mid game (30-60%): start choosing doom more often, occasionally curse to blend in
   if (gameProgress < 0.6) {
+    if (Math.random() < 0.15 && player.curses.length < 2) {
+      return 'curse';
+    }
     if (Math.random() < 0.6) {
       return 'doom';
     }

@@ -181,7 +181,15 @@ function scheduleAiDiscussion(gameId, aiPlayer, game) {
         return;
       }
 
-      const text = await generateAiDialogue(currentGame, aiPlayer, i === 0 ? 'greeting' : 'commentary');
+      let trigger;
+      if (i === 0) {
+        trigger = currentGame.currentRound === 1 ? 'greeting' : 'tollReaction';
+      } else if (i === 1) {
+        trigger = 'threatAssessment';
+      } else {
+        trigger = 'commentary';
+      }
+      const text = await generateAiDialogue(currentGame, aiPlayer, trigger);
 
       await GameMessages.insertAsync({
         gameId,

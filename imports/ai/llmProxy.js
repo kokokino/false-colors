@@ -32,25 +32,19 @@ export async function callStyleTransfer(gameId, baseText, personalityId) {
     return null;
   }
 
+  // Increment call counter once before trying the fallback chain
+  await Games.updateAsync(gameId, {
+    $inc: { llmCallsUsed: 1 },
+    $set: { updatedAt: new Date() },
+  });
+
   // Try each model in the fallback chain
   for (const model of models) {
     try {
       const result = await callOpenRouter(baseUrl, apiKey, model, prompt, maxTokens, temperature);
-
-      // Increment call counter
-      await Games.updateAsync(gameId, {
-        $inc: { llmCallsUsed: 1 },
-        $set: { updatedAt: new Date() },
-      });
-
       return result;
     } catch (error) {
       console.log(`[llmProxy] Model ${model} failed: ${error.message}`);
-      // Increment counter even on failure (rate limit protection)
-      await Games.updateAsync(gameId, {
-        $inc: { llmCallsUsed: 1 },
-        $set: { updatedAt: new Date() },
-      });
       continue;
     }
   }
@@ -60,36 +54,43 @@ export async function callStyleTransfer(gameId, baseText, personalityId) {
 }
 
 async function callOpenRouter(baseUrl, apiKey, model, prompt, maxTokens, temperature) {
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://false-colors.kokokino.com',
-      'X-Title': 'False Colors',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: prompt.systemPrompt },
-        { role: 'user', content: prompt.userPrompt },
-      ],
-      max_tokens: maxTokens,
-      temperature,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  try {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://false-colors.kokokino.com',
+        'X-Title': 'False Colors',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: prompt.systemPrompt },
+          { role: 'user', content: prompt.userPrompt },
+        ],
+        max_tokens: maxTokens,
+        temperature,
+      }),
+      signal: controller.signal,
+    });
 
-  if (!response.ok) {
-    throw new Error(`OpenRouter returned ${response.status}: ${response.statusText}`);
+    if (!response.ok) {
+      throw new Error(`OpenRouter returned ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content?.trim();
+
+    if (!text) {
+      throw new Error('Empty response from OpenRouter');
+    }
+
+    // Strip any quotation marks the model may have added
+    return text.replace(/^["']|["']$/g, '');
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const data = await response.json();
-  const text = data.choices?.[0]?.message?.content?.trim();
-
-  if (!text) {
-    throw new Error('Empty response from OpenRouter');
-  }
-
-  // Strip any quotation marks the model may have added
-  return text.replace(/^["']|["']$/g, '');
 }
