@@ -66,7 +66,7 @@ export const GameBoard = {
   startHeartbeat(vnode) {
     this.heartbeatInterval = setInterval(() => {
       if (this.game?.roomId) {
-        Meteor.callAsync('rooms.touch', this.game.roomId).catch(() => {});
+        Meteor.callAsync('rooms.touch', this.game.roomId).catch(err => console.warn('[heartbeat]', err.message));
       }
     }, 120000); // 2 minutes
   },

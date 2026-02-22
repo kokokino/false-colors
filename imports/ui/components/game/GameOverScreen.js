@@ -13,6 +13,15 @@ const reasonMessages = {
   doom_threshold: 'Doom reached the breaking point. The ship is lost.',
 };
 
+const roleNames = {
+  navigator: 'Navigator',
+  gunner: 'Gunner',
+  surgeon: 'Surgeon',
+  quartermaster: 'Quartermaster',
+  lookout: 'Lookout',
+  cook: 'Cook',
+};
+
 // Game over screen
 // Attrs: game
 export const GameOverScreen = {
@@ -33,6 +42,20 @@ export const GameOverScreen = {
           m('p', `Rounds completed: ${game.currentRound} / ${game.maxRounds}`),
           m('p', `Threats remaining: ${game.activeThreats.length}`),
         ]),
+
+        m('h3', 'Crew Manifest'),
+        m('ul.crew-manifest', game.players.map(player =>
+          m('li', {
+            key: player.seatIndex,
+            class: player.alignment === 'phantom' ? 'phantom-reveal' : '',
+          }, [
+            m('strong', player.displayName),
+            m('span', ` — ${roleNames[player.role] || player.role}`),
+            player.alignment === 'phantom'
+              ? m('mark', ' Phantom')
+              : m('small', ' Loyal'),
+          ])
+        )),
 
         m('button', {
           onclick() {

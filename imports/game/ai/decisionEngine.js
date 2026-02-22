@@ -70,16 +70,10 @@ async function scheduleAsync(gameId, phase) {
   }
 }
 
-// AI toll submission
+// AI toll submission — uses atomic $ne filter to prevent double-submission
 async function submitAiToll(gameId, aiPlayer) {
   const game = await Games.findOneAsync(gameId);
   if (!game || game.currentPhase !== 'toll') {
-    return;
-  }
-
-  // Check not already submitted
-  const alreadySubmitted = game.tollSubmissions.some(s => s.seatIndex === aiPlayer.seatIndex);
-  if (alreadySubmitted) {
     return;
   }
 
@@ -92,15 +86,16 @@ async function submitAiToll(gameId, aiPlayer) {
     choice = chooseLoyalToll(aiPlayer, game, personality);
   }
 
-  await Games.updateAsync(gameId, {
-    $push: {
-      tollSubmissions: {
-        seatIndex: aiPlayer.seatIndex,
-        choice,
-      },
-    },
-    $set: { updatedAt: new Date() },
-  });
+  const updated = await Games.updateAsync(
+    { _id: gameId, currentPhase: 'toll', 'tollSubmissions.seatIndex': { $ne: aiPlayer.seatIndex } },
+    {
+      $push: { tollSubmissions: { seatIndex: aiPlayer.seatIndex, choice } },
+      $set: { updatedAt: new Date() },
+    }
+  );
+  if (updated === 0) {
+    return;
+  }
 
   // Check if all players have submitted — resolve if so
   const updatedGame = await Games.findOneAsync(gameId);
@@ -112,7 +107,7 @@ async function submitAiToll(gameId, aiPlayer) {
   }
 }
 
-// AI action submission
+// AI action submission — uses atomic $ne filter to prevent double-submission
 async function submitAiAction(gameId, aiPlayer) {
   const game = await Games.findOneAsync(gameId);
   if (!game || game.currentPhase !== 'action') {
@@ -120,11 +115,6 @@ async function submitAiAction(gameId, aiPlayer) {
   }
 
   if (!aiPlayer.hasNextAction) {
-    return;
-  }
-
-  const alreadySubmitted = game.actionSubmissions.some(s => s.seatIndex === aiPlayer.seatIndex);
-  if (alreadySubmitted) {
     return;
   }
 
@@ -141,15 +131,16 @@ async function submitAiAction(gameId, aiPlayer) {
     return;
   }
 
-  await Games.updateAsync(gameId, {
-    $push: {
-      actionSubmissions: {
-        seatIndex: aiPlayer.seatIndex,
-        threatId,
-      },
-    },
-    $set: { updatedAt: new Date() },
-  });
+  const updated = await Games.updateAsync(
+    { _id: gameId, currentPhase: 'action', 'actionSubmissions.seatIndex': { $ne: aiPlayer.seatIndex } },
+    {
+      $push: { actionSubmissions: { seatIndex: aiPlayer.seatIndex, threatId } },
+      $set: { updatedAt: new Date() },
+    }
+  );
+  if (updated === 0) {
+    return;
+  }
 
   // Check if all players with actions have submitted
   const updatedGame = await Games.findOneAsync(gameId);

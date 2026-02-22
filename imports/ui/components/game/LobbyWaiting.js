@@ -2,6 +2,8 @@ import m from 'mithril';
 import { Meteor } from 'meteor/meteor';
 import { CountdownTimer } from './CountdownTimer.js';
 
+const COUNTDOWN_MS = 20000;
+
 // Lobby waiting screen — shows player list and countdown to game start
 // Attrs: room (reactive GameRooms document)
 export const LobbyWaiting = {
@@ -12,7 +14,7 @@ export const LobbyWaiting = {
     }
 
     const countdownDeadline = room.countdownStartedAt
-      ? new Date(new Date(room.countdownStartedAt).getTime() + 20000)
+      ? new Date(new Date(room.countdownStartedAt).getTime() + COUNTDOWN_MS)
       : null;
 
     return m('article.lobby-waiting', [

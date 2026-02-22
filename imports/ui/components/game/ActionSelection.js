@@ -2,7 +2,7 @@ import m from 'mithril';
 import { Meteor } from 'meteor/meteor';
 
 // Action assignment UI — player picks which threat to target
-// Attrs: game, myPlayer
+// Attrs: game, myPlayer, lookoutReveal (only present for lookout players)
 export const ActionSelection = {
   oninit() {
     this.submitted = false;
@@ -10,11 +10,12 @@ export const ActionSelection = {
   },
 
   view(vnode) {
-    const { game, myPlayer } = vnode.attrs;
+    const { game, myPlayer, lookoutReveal } = vnode.attrs;
 
     if (!myPlayer.hasNextAction) {
       return m('div.phase-content.action-selection', [
         m('h3', 'Assign Actions'),
+        lookoutReveal ? renderLookoutIntel(lookoutReveal, game) : null,
         m('p', 'You have lost your action this round. Waiting for others...'),
       ]);
     }
@@ -22,6 +23,7 @@ export const ActionSelection = {
     if (this.submitted) {
       return m('div.phase-content.action-selection', [
         m('h3', 'Assign Actions'),
+        lookoutReveal ? renderLookoutIntel(lookoutReveal, game) : null,
         m('p', 'Action assigned. Waiting for other crew members...'),
       ]);
     }
@@ -29,6 +31,8 @@ export const ActionSelection = {
     return m('div.phase-content.action-selection', [
       m('h3', 'Assign Actions'),
       m('p', `As ${myPlayer.displayName} (${myPlayer.role}), choose a threat to apply your action to.`),
+
+      lookoutReveal ? renderLookoutIntel(lookoutReveal, game) : null,
 
       this.error ? m('p.error-message', this.error) : null,
 
@@ -56,3 +60,12 @@ export const ActionSelection = {
     m.redraw();
   },
 };
+
+function renderLookoutIntel(lookoutReveal, game) {
+  const threat = game.activeThreats.find(t => t.id === lookoutReveal.threatId);
+  const threatName = threat ? threat.name : 'unknown threat';
+  return m('div.lookout-intel', [
+    m('strong', 'Lookout Intel: '),
+    m('span', `${lookoutReveal.displayName} is targeting ${threatName}`),
+  ]);
+}

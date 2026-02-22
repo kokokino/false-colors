@@ -34,7 +34,7 @@ export const PhasePanel = {
             threats: game.activeThreats,
           });
         }
-        return m(ActionSelection, { game, myPlayer });
+        return m(ActionSelection, { game, myPlayer, lookoutReveal: game.lookoutReveal });
 
       case 'accusation':
         return m(AccusationPanel, { game, myPlayer });

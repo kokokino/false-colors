@@ -587,9 +587,8 @@ function updateSuspicionFromTolls(game, submissions) {
 }
 
 // Update AI suspicion scores based on action results
-// NOTE: This flags players who don't target their highest-strength threat as suboptimal,
-// but targeting a lower-strength threat near completion is valid cooperative play.
-// Phase 2 TODO: factor in threat progress to avoid false suspicion on loyal players.
+// Treats near-completion threats (progress/threshold > 0.6) as valid targets
+// to avoid false suspicion on loyal players finishing off threats.
 function updateSuspicionFromActions(game, submissions) {
   if (game.activeThreats.length === 0) {
     return;
@@ -616,7 +615,10 @@ function updateSuspicionFromActions(game, submissions) {
       }
       const targetedStrength = getActionStrength(role, targetedThreat.type);
       const bestStrength = Math.max(...game.activeThreats.map(t => getActionStrength(role, t.type)));
-      const eventType = targetedStrength >= bestStrength ? 'action_optimal' : 'action_suboptimal';
+
+      // Targeting a near-completion threat is valid cooperative play
+      const nearCompletion = targetedThreat.threshold > 0 && (targetedThreat.progress / targetedThreat.threshold) > 0.6;
+      const eventType = (targetedStrength >= bestStrength || nearCompletion) ? 'action_optimal' : 'action_suboptimal';
       updateSuspicion(game._id, ai.seatIndex, sub.seatIndex, eventType);
     }
   }

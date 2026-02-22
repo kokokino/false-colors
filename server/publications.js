@@ -71,7 +71,8 @@ Meteor.publish('rooms.current', function(roomId) {
 });
 
 // Game publication — uses observeChanges to strip secrets
-// NEVER publishes: players[].alignment, players[].isAI, actionSubmissions, tollSubmissions, llmCallsUsed, threatDeck
+// NEVER publishes: players[].isAI, actionSubmissions, tollSubmissions, llmCallsUsed, threatDeck
+// After game ends: players[].alignment IS revealed, lookoutReveal is no longer stripped
 Meteor.publish('game', async function(gameId) {
   check(gameId, String);
   if (!this.userId) {
@@ -84,13 +85,26 @@ Meteor.publish('game', async function(gameId) {
     return this.ready();
   }
 
+  // Determine if subscribing user is the lookout
+  const myPlayer = membership.players.find(p => p.userId === this.userId);
+  const isLookout = myPlayer?.role === 'lookout';
+
+  // Track current phase to know when secrets can be revealed
+  let currentPhase = membership.currentPhase;
+
   const sub = this;
   const handle = await Games.find({ _id: gameId }).observeChanges({
     added(id, fields) {
-      sub.added('games', id, stripSecrets(fields));
+      if (fields.currentPhase) {
+        currentPhase = fields.currentPhase;
+      }
+      sub.added('games', id, stripSecrets(fields, currentPhase, isLookout));
     },
     changed(id, fields) {
-      sub.changed('games', id, stripSecrets(fields));
+      if (fields.currentPhase) {
+        currentPhase = fields.currentPhase;
+      }
+      sub.changed('games', id, stripSecrets(fields, currentPhase, isLookout));
     },
     removed(id) {
       sub.removed('games', id);
@@ -102,15 +116,25 @@ Meteor.publish('game', async function(gameId) {
 });
 
 // Strip secret fields from game documents before publishing
-function stripSecrets(fields) {
+function stripSecrets(fields, currentPhase, isLookout) {
   const safe = { ...fields };
 
   // Strip secret player fields
   if (safe.players) {
     safe.players = safe.players.map(p => {
+      if (currentPhase === 'finished') {
+        // Post-game: reveal alignment but keep isAI hidden
+        const { isAI, ...publicFields } = p;
+        return publicFields;
+      }
       const { alignment, isAI, ...publicFields } = p;
       return publicFields;
     });
+  }
+
+  // Strip lookoutReveal for non-lookout players
+  if (!isLookout && safe.lookoutReveal !== undefined) {
+    delete safe.lookoutReveal;
   }
 
   // Never publish these fields

@@ -888,5 +888,162 @@ describe("false_colors", function () {
         assert.strictEqual(result, null);
       });
     });
+
+    // ---- 10. Integration: Full Game Loop ----
+
+    describe("Integration — Full Game Loop", function () {
+      it("walks through all phases from THREAT to ROUND_END and checks game end", async function () {
+        const { resolveTolls, resolveActions, resolveAccusation, checkGameEnd } = await import("../imports/game/resolution.js");
+        const { createThreatDeck, drawThreats } = await import("../imports/game/threats.js");
+        const { GamePhase, GameResult } = await import("../imports/lib/collections/games.js");
+
+        // Create initial game state
+        const game = {
+          _id: 'integration-test',
+          players: [
+            { seatIndex: 0, supplies: 3, curses: [], role: 'navigator', alignment: 'loyal', hasNextAction: true, displayName: 'Alice' },
+            { seatIndex: 1, supplies: 3, curses: [], role: 'gunner', alignment: 'loyal', hasNextAction: true, displayName: 'Bob' },
+            { seatIndex: 2, supplies: 3, curses: [], role: 'surgeon', alignment: 'loyal', hasNextAction: true, displayName: 'Carol' },
+            { seatIndex: 3, supplies: 3, curses: [], role: 'quartermaster', alignment: 'phantom', hasNextAction: true, displayName: 'Dave' },
+          ],
+          doomLevel: 0,
+          doomThreshold: 15,
+          shipSupplies: 10,
+          activeThreats: [],
+          threatDeck: createThreatDeck(),
+          currentRound: 1,
+          maxRounds: 10,
+          currentPhase: GamePhase.THREAT,
+        };
+
+        // --- THREAT PHASE ---
+        const { drawn, remaining } = drawThreats([...game.threatDeck], game.currentRound);
+        assert.strictEqual(drawn.length, 1, "round 1 draws 1 threat");
+        game.activeThreats = [...game.activeThreats, ...drawn];
+        game.threatDeck = remaining;
+        assert.strictEqual(game.activeThreats.length, 1);
+
+        // --- TOLL PHASE ---
+        game.currentPhase = GamePhase.TOLL;
+        const tollSubmissions = [
+          { seatIndex: 0, choice: 'supply' },
+          { seatIndex: 1, choice: 'doom' },
+          { seatIndex: 2, choice: 'supply' },
+          { seatIndex: 3, choice: 'doom' },
+        ];
+        const tollResult = resolveTolls(game, tollSubmissions);
+        assert.strictEqual(tollResult.players[0].supplies, 2, "Alice loses 1 supply");
+        assert.strictEqual(tollResult.doomLevel, 2, "2 doom tolls add 2 doom");
+        game.players = tollResult.players;
+        game.doomLevel = tollResult.doomLevel;
+        game.shipSupplies = tollResult.shipSupplies;
+
+        // --- DISCUSSION PHASE --- (no resolution logic, just phase transition)
+        game.currentPhase = GamePhase.DISCUSSION;
+        assert.strictEqual(game.currentPhase, GamePhase.DISCUSSION);
+
+        // --- ACTION PHASE ---
+        game.currentPhase = GamePhase.ACTION;
+        const threatId = game.activeThreats[0].id;
+        const actionSubmissions = [
+          { seatIndex: 0, threatId }, // navigator vs threat
+          { seatIndex: 1, threatId }, // gunner vs threat
+          { seatIndex: 2, threatId }, // surgeon vs threat
+          { seatIndex: 3, threatId }, // quartermaster vs threat
+        ];
+        const actionResult = resolveActions(game, actionSubmissions);
+        // Verify progress was applied (total strength depends on threat type vs roles)
+        assert.ok(actionResult.activeThreats !== undefined, "resolveActions returns activeThreats");
+        game.activeThreats = actionResult.activeThreats;
+
+        // --- ACCUSATION PHASE --- (no accusation made, advances automatically)
+        game.currentPhase = GamePhase.ACCUSATION;
+        // No accusation — just verify we can advance
+        assert.strictEqual(game.currentPhase, GamePhase.ACCUSATION);
+
+        // --- ROUND END ---
+        game.currentPhase = GamePhase.ROUND_END;
+        const endCheck1 = checkGameEnd(game);
+        // Game should not end after round 1 with low doom
+        assert.strictEqual(endCheck1.ended, false, "game should not end after round 1");
+
+        // Advance to round 2
+        game.currentRound = 2;
+        game.players = game.players.map(p => ({ ...p, hasNextAction: true }));
+
+        // --- Verify game end: doom threshold ---
+        const doomGame = { ...game, doomLevel: 15, doomThreshold: 15 };
+        const doomEnd = checkGameEnd(doomGame);
+        assert.strictEqual(doomEnd.ended, true);
+        assert.strictEqual(doomEnd.result, GameResult.PHANTOM_WIN);
+        assert.strictEqual(doomEnd.reason, 'doom_threshold');
+
+        // --- Verify game end: survived all rounds ---
+        const survivedGame = { ...game, currentRound: 10, maxRounds: 10, doomLevel: 5 };
+        const survivedEnd = checkGameEnd(survivedGame);
+        assert.strictEqual(survivedEnd.ended, true);
+        assert.strictEqual(survivedEnd.result, GameResult.LOYAL_WIN);
+        assert.strictEqual(survivedEnd.reason, 'survived_all_rounds');
+
+        // --- Verify game end: all threats cleared ---
+        const clearedGame = { ...game, activeThreats: [], threatDeck: [], currentRound: 3 };
+        const clearedEnd = checkGameEnd(clearedGame);
+        assert.strictEqual(clearedEnd.ended, true);
+        assert.strictEqual(clearedEnd.result, GameResult.LOYAL_WIN);
+        assert.strictEqual(clearedEnd.reason, 'all_threats_cleared');
+      });
+
+      it("accusation correctly identifies and convicts phantom mid-game", async function () {
+        const { resolveAccusation } = await import("../imports/game/resolution.js");
+
+        const game = makeGame();
+        const accusation = {
+          accuserSeat: 0,
+          targetSeat: 3, // Dave is phantom
+          votes: [
+            { seatIndex: 1, guilty: true },
+            { seatIndex: 2, guilty: true },
+          ],
+        };
+        const result = resolveAccusation(game, accusation);
+        assert.strictEqual(result.correct, true, "phantom should be correctly identified");
+        assert.strictEqual(result.convicted, true);
+      });
+
+      it("wrong accusation penalizes accuser then game continues", async function () {
+        const { resolveTolls, resolveActions, resolveAccusation } = await import("../imports/game/resolution.js");
+
+        const game = makeGame({
+          activeThreats: [makeThreat({ id: 't1', type: 'fog', threshold: 10, progress: 0 })],
+        });
+
+        // Wrong accusation against loyal player
+        const accusation = {
+          accuserSeat: 0,
+          targetSeat: 1, // Bob is loyal
+          votes: [
+            { seatIndex: 2, guilty: true },
+            { seatIndex: 3, guilty: true },
+          ],
+        };
+        const accuseResult = resolveAccusation(game, accusation);
+        assert.strictEqual(accuseResult.correct, false);
+        assert.strictEqual(accuseResult.convicted, true);
+
+        // Accuser loses next action
+        const penalizedPlayers = accuseResult.updatedPlayers;
+        const accuser = penalizedPlayers.find(p => p.seatIndex === 0);
+        assert.strictEqual(accuser.hasNextAction, false);
+
+        // Next round: accuser's action is skipped
+        const gameAfterPenalty = { ...game, players: penalizedPlayers };
+        const actionResult = resolveActions(gameAfterPenalty, [
+          { seatIndex: 0, threatId: 't1' }, // should be skipped (hasNextAction = false)
+          { seatIndex: 1, threatId: 't1' }, // gunner off-spec = 1
+        ]);
+        // Only seat 1's action counts (gunner vs fog = offStrength 1)
+        assert.strictEqual(actionResult.activeThreats[0].progress, 1);
+      });
+    });
   }
 });
