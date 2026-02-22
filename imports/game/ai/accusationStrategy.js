@@ -29,17 +29,20 @@ export function shouldLoyalAccuse(aiPlayer, game, personality) {
 }
 
 // Decide whether phantom AI should accuse (to deflect)
+// accuseEagerness: high = deflects more often and earlier, low = rarely deflects
 export function shouldPhantomAccuse(aiPlayer, game, personality) {
+  const traits = personality.traits;
   const gameProgress = game.currentRound / game.maxRounds;
 
-  // Phantom sometimes accuses loyal players to create confusion
-  if (gameProgress > 0.4 && Math.random() < 0.25) {
-    // Pick a loyal player to accuse (not self)
-    const loyalTargets = game.players.filter(p =>
-      p.seatIndex !== aiPlayer.seatIndex && p.alignment === Alignment.LOYAL
-    );
-    if (loyalTargets.length > 0) {
-      const target = loyalTargets[Math.floor(Math.random() * loyalTargets.length)];
+  // Eagerness shifts when phantom starts deflecting and how often
+  const deflectStart = 0.5 - (traits.accuseEagerness * 0.2);
+  const deflectChance = 0.15 + (traits.accuseEagerness * 0.2);
+
+  if (gameProgress > deflectStart && Math.random() < deflectChance) {
+    // Pick randomly from non-self players (phantom doesn't know alignments)
+    const targets = game.players.filter(p => p.seatIndex !== aiPlayer.seatIndex);
+    if (targets.length > 0) {
+      const target = targets[Math.floor(Math.random() * targets.length)];
       return target.seatIndex;
     }
   }
@@ -51,14 +54,14 @@ export function shouldPhantomAccuse(aiPlayer, game, personality) {
 export function voteOnAccusation(aiPlayer, game, accusation, personality) {
   const traits = personality.traits;
 
-  // If AI is the phantom and the target is NOT the phantom, vote guilty to create chaos
+  // Phantom voting: no alignment knowledge, uses chaos factor
   if (aiPlayer.alignment === Alignment.PHANTOM) {
-    const target = game.players.find(p => p.seatIndex === accusation.targetSeat);
-    if (target && target.alignment !== Alignment.PHANTOM) {
-      return Math.random() < 0.6; // Usually vote guilty against innocents
+    // Never vote guilty on self
+    if (accusation.targetSeat === aiPlayer.seatIndex) {
+      return false;
     }
-    // Target IS the phantom (self or ally situation) — vote not guilty
-    return false;
+    // Vote guilty 60% of the time on anyone else to create chaos
+    return Math.random() < 0.6;
   }
 
   // Loyal AI: vote based on suspicion of the target

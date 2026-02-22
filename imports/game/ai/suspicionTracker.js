@@ -40,6 +40,7 @@ export function updateSuspicion(gameId, aiSeatIndex, targetSeat, eventType) {
     action_suboptimal: 0.15, // Bad targeting raises suspicion
     accused_loyal: 0.2,     // Accusing a loyal player is very suspicious
     defended_self_well: -0.1,
+    voted_guilty_on_acquitted: 0.1, // Voting guilty on someone who was acquitted is mildly suspicious
   };
 
   const delta = deltas[eventType] || 0;

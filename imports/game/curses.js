@@ -14,7 +14,7 @@ export const Curses = [
     name: 'Haunted Vision',
     effect: 'noLookout',
     value: true,
-    description: 'You can no longer benefit from the Lookout\'s early reveal.',
+    description: 'Disrupts the Lookout\'s vision. The early reveal ability is disabled for all players.',
   },
   {
     id: 'sea_madness',

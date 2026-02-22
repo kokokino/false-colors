@@ -1,8 +1,7 @@
 // AI action decision strategy
 // Loyal: target highest-utility threat. Phantom: target suboptimally.
 
-import { getActionStrength } from '../roles.js';
-import { Roles } from '../roles.js';
+import { Roles, getActionStrength } from '../roles.js';
 
 // Calculate threat priority score (higher = more urgent)
 function threatPriority(threat, role) {
@@ -43,12 +42,14 @@ export function chooseLoyalAction(player, game, personality) {
 }
 
 // Phantom AI action choice — target suboptimally but defensibly
+// actionOptimality: high = more subtle (cooperates more, picks 2nd), low = blunt (picks 3rd more)
 export function choosePhantomAction(player, game, personality, round) {
   const role = Object.values(Roles).find(r => r.id === player.role);
   if (!role || game.activeThreats.length === 0) {
     return null;
   }
 
+  const traits = personality.traits;
   const gameProgress = round / game.maxRounds;
 
   const scored = game.activeThreats.map(threat => ({
@@ -58,14 +59,19 @@ export function choosePhantomAction(player, game, personality, round) {
 
   scored.sort((a, b) => b.score - a.score);
 
-  // Early game: cooperate 40% of the time
-  if (gameProgress < 0.3 && Math.random() < 0.4) {
+  // Early game: cooperate proportional to actionOptimality
+  // High optimality = cooperate more (subtle phantom), low = less cooperative
+  const cooperateChance = 0.2 + (traits.actionOptimality * 0.3);
+  if (gameProgress < 0.3 && Math.random() < cooperateChance) {
     return scored[0].threatId;
   }
 
-  // Pick 2nd or 3rd priority (suboptimal but defensible)
-  if (scored.length >= 3 && Math.random() < 0.5) {
-    return scored[2].threatId;
+  // Mid-late game: high optimality picks 2nd target (subtle waste), low picks 3rd (blunt)
+  if (scored.length >= 3) {
+    const thirdChance = 0.6 - (traits.actionOptimality * 0.4);
+    if (Math.random() < thirdChance) {
+      return scored[2].threatId;
+    }
   }
   if (scored.length >= 2) {
     return scored[1].threatId;

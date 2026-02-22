@@ -11,7 +11,10 @@ import './migrations/0_steps.js';
 // Game modules
 import './roomMethods.js';
 import './gameMethods.js';
-import './aiMethods.js';
+
+// AI modules (side-effect imports for LLM proxy and dialogue engine)
+import '../imports/ai/llmProxy.js';
+import '../imports/ai/dialogueEngine.js';
 
 // Room cleanup
 import { startRoomCleanup } from './roomCleanup.js';

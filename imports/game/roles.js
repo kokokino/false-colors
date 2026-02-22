@@ -40,7 +40,7 @@ export const Roles = {
     id: 'lookout',
     name: 'Lookout',
     specialty: [],
-    specialtyStrength: 2,
+    specialtyStrength: 2, // Intentionally unused — Lookout has no specialty, always uses offStrength
     offStrength: 2,
     passive: 'reveals one other action early during reveal phase',
     description: 'Spots danger early — reveals one action before others.',
@@ -55,8 +55,6 @@ export const Roles = {
     description: 'Weak fighter but heals 1 supply to all crew each round.',
   },
 };
-
-export const RoleList = Object.values(Roles);
 
 // Get action strength for a role against a threat type
 export function getActionStrength(role, threatType) {

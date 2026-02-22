@@ -2,7 +2,8 @@ import { Meteor } from 'meteor/meteor';
 import { check } from 'meteor/check';
 import { GameRooms } from '../imports/api/collections.js';
 import { RoomStatus, MIN_PLAYERS, MAX_PLAYERS, GameConstants } from '../imports/lib/collections/games.js';
-import { startGame } from '../imports/game/stateMachine.js';
+import { startGame, convertToAi } from '../imports/game/stateMachine.js';
+import { Games } from '../imports/api/collections.js';
 
 // Track active countdown timers by roomId
 const countdownTimers = new Map();
@@ -86,16 +87,29 @@ Meteor.methods({
         nextSlot++;
       }
 
-      await GameRooms.updateAsync(openRoom._id, {
-        $push: {
-          players: {
-            userId: this.userId,
-            username: user.username || 'Anonymous',
-            slot: nextSlot,
-          },
+      // Atomic guard: only push if room still has space
+      const joined = await GameRooms.updateAsync(
+        {
+          _id: openRoom._id,
+          status: RoomStatus.WAITING,
+          $expr: { $lt: [{ $size: '$players' }, MAX_PLAYERS] },
         },
-        $set: { lastActiveAt: new Date() },
-      });
+        {
+          $push: {
+            players: {
+              userId: this.userId,
+              username: user.username || 'Anonymous',
+              slot: nextSlot,
+            },
+          },
+          $set: { lastActiveAt: new Date() },
+        }
+      );
+
+      // Race lost — room filled between find and update; retry matchmaking
+      if (joined === 0) {
+        return Meteor.callAsync('matchmaking.findOrCreate');
+      }
 
       // Check if room is now full — start immediately
       const updatedRoom = await GameRooms.findOneAsync(openRoom._id);
@@ -167,6 +181,22 @@ Meteor.methods({
     const playerInRoom = room.players.some(p => p.userId === this.userId);
     if (!playerInRoom) {
       throw new Meteor.Error('not-in-room', 'You are not in this room');
+    }
+
+    // Mid-game leave: convert character to AI instead of removing
+    if (room.status === RoomStatus.PLAYING && room.gameId) {
+      const game = await Games.findOneAsync({ _id: room.gameId });
+      if (game) {
+        const player = game.players.find(p => p.userId === this.userId);
+        if (player) {
+          await convertToAi(room.gameId, player.seatIndex);
+        }
+      }
+      // Remove from room's player list
+      await GameRooms.updateAsync(roomId, {
+        $pull: { players: { userId: this.userId } },
+      });
+      return;
     }
 
     const remainingPlayers = room.players.filter(p => p.userId !== this.userId);

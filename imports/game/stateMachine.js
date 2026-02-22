@@ -3,8 +3,7 @@ import { GameRooms, Games, GameLog } from '../api/collections.js';
 import { GamePhase, Alignment, GameResult, RoomStatus } from '../lib/collections/games.js';
 import { Roles, getActionStrength } from './roles.js';
 import { createThreatDeck, drawThreats } from './threats.js';
-import { shuffleRoster } from './ai/aiNames.js';
-import { Personalities } from './ai/personalities.js';
+import { shuffleRoster } from './ai/crewRoster.js';
 import { startPhaseTimer, clearPhaseTimer, PhaseDurations } from './phaseTimer.js';
 import { resolveTolls, resolveActions, resolveAccusation, checkGameEnd } from './resolution.js';
 import { scheduleAiActions } from './ai/decisionEngine.js';
@@ -23,6 +22,15 @@ const PHANTOM_PROBABILITY = 0.8;
 
 // Start a game from a room — creates Games doc, assigns characters, fills AI seats
 export async function startGame(roomId, totalPlayers) {
+  // Atomic guard: only start if room is still in WAITING or STARTING state
+  const claimed = await GameRooms.updateAsync(
+    { _id: roomId, status: { $in: [RoomStatus.WAITING, RoomStatus.STARTING] } },
+    { $set: { status: RoomStatus.STARTING } }
+  );
+  if (claimed === 0) {
+    return;
+  }
+
   const room = await GameRooms.findOneAsync(roomId);
   if (!room) {
     return;
@@ -42,7 +50,6 @@ export async function startGame(roomId, totalPlayers) {
     const character = roster[i];
     const isAI = i >= humanUserIds.length;
     const userId = isAI ? `ai_${character.roleId}_${roomId}` : humanUserIds[i];
-    const personality = Personalities[character.personality];
 
     players.push({
       seatIndex: i,
@@ -333,7 +340,7 @@ export async function resolveActionPhase(gameId) {
     let lookoutReveal = null;
     const lookout = game.players.find(p => p.role === 'lookout');
     if (lookout) {
-      const hasNoLookout = lookout.curses.some(c => c.effect === 'noLookout');
+      const hasNoLookout = game.players.some(p => p.curses.some(c => c.effect === 'noLookout'));
       if (!hasNoLookout) {
         const otherSubmissions = allSubmissions.filter(s => s.seatIndex !== lookout.seatIndex);
         if (otherSubmissions.length > 0) {
@@ -450,6 +457,19 @@ export async function resolveAccusationPhase(gameId) {
           updateSuspicion(game._id, ai.seatIndex, game.accusation.accuserSeat, 'accused_loyal');
         }
       }
+      // Track guilty voters on acquitted players as mildly suspicious
+      if (game.accusation.votes) {
+        const guiltyVoters = game.accusation.votes
+          .filter(v => v.guilty)
+          .map(v => v.seatIndex);
+        for (const ai of aiPlayers) {
+          for (const voterSeat of guiltyVoters) {
+            if (voterSeat !== ai.seatIndex) {
+              updateSuspicion(game._id, ai.seatIndex, voterSeat, 'voted_guilty_on_acquitted');
+            }
+          }
+        }
+      }
     }
 
     // Check if phantom was caught — game might end
@@ -529,6 +549,7 @@ async function startNextRound(gameId) {
       tollSubmissions: [],
       actionSubmissions: [],
       revealedActions: null,
+      lookoutReveal: null,
       accusation: null,
       players: resetPlayers,
       updatedAt: now,
@@ -637,6 +658,43 @@ async function appendLog(gameId, round, phase, type, data) {
     data,
     createdAt: new Date(),
   });
+}
+
+// Convert a human player to AI mid-game (disconnect or explicit leave)
+export async function convertToAi(gameId, seatIndex) {
+  const game = await Games.findOneAsync(gameId);
+  if (!game || game.currentPhase === GamePhase.FINISHED) {
+    return;
+  }
+
+  const player = game.players.find(p => p.seatIndex === seatIndex);
+  if (!player || player.isAI) {
+    return;
+  }
+
+  // Atomically set isAI for this player
+  const updatedPlayers = game.players.map(p => {
+    if (p.seatIndex === seatIndex) {
+      return { ...p, isAI: true };
+    }
+    return { ...p };
+  });
+
+  await Games.updateAsync(gameId, {
+    $set: { players: updatedPlayers, updatedAt: new Date() },
+  });
+
+  await appendLog(gameId, game.currentRound, game.currentPhase, 'player_replaced_by_ai', {
+    seatIndex,
+    displayName: player.displayName,
+  });
+
+  // If the game is in a timed phase and this player hasn't submitted, schedule their AI action
+  const timedPhases = [GamePhase.TOLL, GamePhase.ACTION, GamePhase.ACCUSATION];
+  if (timedPhases.includes(game.currentPhase)) {
+    const aiPlayer = { ...player, isAI: true };
+    scheduleAiActions(gameId, game.currentPhase, [aiPlayer]);
+  }
 }
 
 // Register resolve functions so decisionEngine can call them without circular imports

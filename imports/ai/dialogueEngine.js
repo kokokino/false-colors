@@ -94,5 +94,7 @@ function buildSlotData(game, aiPlayer) {
     rounds_left: roundsLeft.toString(),
     doom_level: game.doomLevel.toString(),
     doom_threshold: game.doomThreshold.toString(),
+    doom_remaining: Math.max(0, game.doomThreshold - game.doomLevel).toString(),
+    doom_percent: Math.round((game.doomLevel / game.doomThreshold) * 100).toString(),
   };
 }

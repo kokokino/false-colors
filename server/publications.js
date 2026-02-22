@@ -2,6 +2,10 @@ import { Meteor } from 'meteor/meteor';
 import { check } from 'meteor/check';
 import { GameRooms, Games, GameMessages, GameLog } from '../imports/api/collections.js';
 import { RoomStatus } from '../imports/lib/collections/games.js';
+import { convertToAi } from '../imports/game/stateMachine.js';
+
+// Grace timers for disconnected players — keyed by "gameId_seatIndex"
+const disconnectTimers = new Map();
 
 // Publish current user's subscription data
 Meteor.publish('userData', function() {
@@ -89,6 +93,14 @@ Meteor.publish('game', async function(gameId) {
   const myPlayer = membership.players.find(p => p.userId === this.userId);
   const isLookout = myPlayer?.role === 'lookout';
 
+  // Cancel any existing disconnect grace timer for this player
+  const timerKey = `${gameId}_${myPlayer.seatIndex}`;
+  const existingTimer = disconnectTimers.get(timerKey);
+  if (existingTimer) {
+    Meteor.clearTimeout(existingTimer);
+    disconnectTimers.delete(timerKey);
+  }
+
   // Track current phase to know when secrets can be revealed
   let currentPhase = membership.currentPhase;
 
@@ -112,7 +124,17 @@ Meteor.publish('game', async function(gameId) {
   });
 
   sub.ready();
-  sub.onStop(() => handle.stop());
+  sub.onStop(() => {
+    handle.stop();
+    // Start 30-second grace timer for unclean disconnect
+    if (currentPhase !== 'finished') {
+      const timerId = Meteor.setTimeout(async () => {
+        disconnectTimers.delete(timerKey);
+        await convertToAi(gameId, myPlayer.seatIndex);
+      }, 30000);
+      disconnectTimers.set(timerKey, timerId);
+    }
+  });
 });
 
 // Strip secret fields from game documents before publishing

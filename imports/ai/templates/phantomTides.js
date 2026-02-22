@@ -45,6 +45,7 @@ const templates = {
       '{threat_name} terrifies me. We need everyone on this!',
       'Has anyone seen {threat_name} before? It looks deadly...',
       'Oh no, not {threat_name}. We\'re in trouble.',
+      'With doom at {doom_level}, {threat_name} adding {doom_per_round} more is terrifying!',
     ],
     cheerful: [
       '{threat_name}? We\'ve handled worse! Let\'s do this.',
@@ -88,6 +89,7 @@ const templates = {
       'I chose the option with the least long-term cost.',
       'Mathematically, that was the optimal toll choice.',
       'The toll impact should be manageable given our resources.',
+      'At {doom_level}/{doom_threshold} doom, that was the optimal toll choice.',
     ],
     bold: [
       'Ha! That barely hurt.',
@@ -167,11 +169,45 @@ const templates = {
     ],
   },
 
+  doomWarning: {
+    terse: [
+      '{doom_level} doom. {doom_remaining} left. No room for error.',
+      'Doom at {doom_level}. We need to tighten up.',
+      '{doom_remaining} doom to spare. That\'s it.',
+    ],
+    worried: [
+      'We\'re at {doom_level} out of {doom_threshold} doom! We can\'t afford another point!',
+      'Only {doom_remaining} doom left before we\'re done for! What do we do?!',
+      'I can barely look at the doom tracker... {doom_level} already!',
+    ],
+    cheerful: [
+      'Okay, doom\'s at {doom_level}... but {doom_remaining} to go! We can still turn this around!',
+      'Sure, {doom_level} doom is a lot, but I believe in this crew!',
+      '{doom_remaining} doom left — tight, but we\'ve had worse! Right?',
+    ],
+    analytical: [
+      'Doom is at {doom_percent}% capacity. At current rate, we have roughly {rounds_left} rounds.',
+      'We\'re at {doom_level}/{doom_threshold}. Every doom point from here is critical.',
+      'Analysis: {doom_remaining} doom remaining. Threat mitigation is now top priority.',
+    ],
+    bold: [
+      'Only {doom_remaining} doom to spare? Good. I work best under pressure.',
+      'Doom at {doom_level}? Let them bring it. We\'re not done yet.',
+      '{doom_percent}% doom? Ha! We\'ve got this.',
+    ],
+    solemn: [
+      'The abyss creeps closer — {doom_level} of {doom_threshold}. We must hold the line.',
+      'Doom weighs heavy at {doom_level}. Pray we find strength.',
+      'Only {doom_remaining} steps from the edge. The sea tests our faith.',
+    ],
+  },
+
   commentary: {
     terse: [
       'Doom\'s rising. Pick up the pace.',
       'We need better coordination.',
       'Focus on what matters.',
+      '{doom_remaining} doom left. Every choice counts.',
     ],
     worried: [
       'The doom tracker is getting too high!',

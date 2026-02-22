@@ -15,18 +15,19 @@ function randomDelay(min, max) {
 }
 
 // Schedule AI actions for a given phase with human-like delays
-export function scheduleAiActions(gameId, phase) {
+// Optional specificPlayers array to schedule only certain AI players (e.g. mid-phase disconnect conversion)
+export function scheduleAiActions(gameId, phase, specificPlayers) {
   // Run async — don't block the caller
-  scheduleAsync(gameId, phase).catch(err => console.error('[ai] schedule error:', err));
+  scheduleAsync(gameId, phase, specificPlayers).catch(err => console.error('[ai] schedule error:', err));
 }
 
-async function scheduleAsync(gameId, phase) {
+async function scheduleAsync(gameId, phase, specificPlayers) {
   const game = await Games.findOneAsync(gameId);
   if (!game) {
     return;
   }
 
-  const aiPlayers = game.players.filter(p => p.isAI);
+  const aiPlayers = specificPlayers || game.players.filter(p => p.isAI);
 
   // Initialize suspicion tracking for AI players on first call
   const allSeats = game.players.map(p => p.seatIndex);
@@ -180,12 +181,14 @@ function scheduleAiDiscussion(gameId, aiPlayer, game) {
         }
 
         let trigger;
+        const doomHigh = currentGame.doomLevel > currentGame.doomThreshold * 0.6;
         if (i === 0) {
           trigger = currentGame.currentRound === 1 ? 'greeting' : 'tollReaction';
         } else if (i === 1) {
-          trigger = 'threatAssessment';
+          // When doom is high, sometimes warn about doom instead of assessing threats
+          trigger = doomHigh && Math.random() < 0.4 ? 'doomWarning' : 'threatAssessment';
         } else {
-          trigger = 'commentary';
+          trigger = doomHigh && Math.random() < 0.5 ? 'doomWarning' : 'commentary';
         }
         const text = await generateAiDialogue(currentGame, aiPlayer, trigger);
 
