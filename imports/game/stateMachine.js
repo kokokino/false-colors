@@ -8,7 +8,7 @@ import { Personalities } from './ai/personalities.js';
 import { startPhaseTimer, clearPhaseTimer, PhaseDurations } from './phaseTimer.js';
 import { resolveTolls, resolveActions, resolveAccusation, checkGameEnd } from './resolution.js';
 import { scheduleAiActions } from './ai/decisionEngine.js';
-import { clearSuspicion, updateSuspicion } from './ai/suspicionTracker.js';
+import { clearSuspicion, decaySuspicion, updateSuspicion } from './ai/suspicionTracker.js';
 import { registerResolver } from './resolverRegistry.js';
 
 // In-memory lock to prevent concurrent phase resolution (race between timer, AI, and human callers)
@@ -487,6 +487,9 @@ async function runRoundEndPhase(gameId) {
   await Games.updateAsync(gameId, {
     $set: { players: updatedPlayers, updatedAt: new Date() },
   });
+
+  // Decay suspicion so one-time offenders fade over quiet rounds
+  decaySuspicion(gameId);
 
   // Check game end conditions
   const endCheck = checkGameEnd(await Games.findOneAsync(gameId));

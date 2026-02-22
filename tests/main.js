@@ -1045,5 +1045,163 @@ describe("false_colors", function () {
         assert.strictEqual(actionResult.activeThreats[0].progress, 1);
       });
     });
+
+    // ---- 11. Suspicion Decay ----
+
+    describe("Suspicion Decay", function () {
+      it("reduces all scores by decay rate", async function () {
+        const { initSuspicion, updateSuspicion, getSuspicion, decaySuspicion, clearSuspicion } = await import("../imports/game/ai/suspicionTracker.js");
+        const gameId = 'test-decay-1';
+        initSuspicion(gameId, 0, [0, 1, 2]);
+        updateSuspicion(gameId, 0, 1, 'toll_doom');  // +0.1
+        updateSuspicion(gameId, 0, 2, 'accused_loyal'); // +0.2
+        decaySuspicion(gameId, 0.1);
+        assert.ok(Math.abs(getSuspicion(gameId, 0, 1) - 0.09) < 0.001, `expected ~0.09, got ${getSuspicion(gameId, 0, 1)}`);
+        assert.ok(Math.abs(getSuspicion(gameId, 0, 2) - 0.18) < 0.001, `expected ~0.18, got ${getSuspicion(gameId, 0, 2)}`);
+        clearSuspicion(gameId);
+      });
+
+      it("0% decay preserves scores", async function () {
+        const { initSuspicion, updateSuspicion, getSuspicion, decaySuspicion, clearSuspicion } = await import("../imports/game/ai/suspicionTracker.js");
+        const gameId = 'test-decay-2';
+        initSuspicion(gameId, 0, [0, 1]);
+        updateSuspicion(gameId, 0, 1, 'toll_doom'); // +0.1
+        decaySuspicion(gameId, 0);
+        assert.ok(Math.abs(getSuspicion(gameId, 0, 1) - 0.1) < 0.001);
+        clearSuspicion(gameId);
+      });
+
+      it("100% decay zeros scores", async function () {
+        const { initSuspicion, updateSuspicion, getSuspicion, decaySuspicion, clearSuspicion } = await import("../imports/game/ai/suspicionTracker.js");
+        const gameId = 'test-decay-3';
+        initSuspicion(gameId, 0, [0, 1]);
+        updateSuspicion(gameId, 0, 1, 'accused_loyal'); // +0.2
+        decaySuspicion(gameId, 1);
+        assert.strictEqual(getSuspicion(gameId, 0, 1), 0);
+        clearSuspicion(gameId);
+      });
+
+      it("unknown gameId does not throw", async function () {
+        const { decaySuspicion } = await import("../imports/game/ai/suspicionTracker.js");
+        assert.doesNotThrow(() => decaySuspicion('nonexistent-game-id'));
+      });
+
+      it("multiple AI players decay independently", async function () {
+        const { initSuspicion, updateSuspicion, getSuspicion, decaySuspicion, clearSuspicion } = await import("../imports/game/ai/suspicionTracker.js");
+        const gameId = 'test-decay-5';
+        initSuspicion(gameId, 0, [0, 1, 2]);
+        initSuspicion(gameId, 1, [0, 1, 2]);
+        updateSuspicion(gameId, 0, 2, 'toll_doom');    // AI 0 → seat 2: 0.1
+        updateSuspicion(gameId, 1, 2, 'accused_loyal'); // AI 1 → seat 2: 0.2
+        decaySuspicion(gameId, 0.1);
+        assert.ok(Math.abs(getSuspicion(gameId, 0, 2) - 0.09) < 0.001);
+        assert.ok(Math.abs(getSuspicion(gameId, 1, 2) - 0.18) < 0.001);
+        clearSuspicion(gameId);
+      });
+
+      it("default rate (no arg) uses 0.1", async function () {
+        const { initSuspicion, updateSuspicion, getSuspicion, decaySuspicion, clearSuspicion } = await import("../imports/game/ai/suspicionTracker.js");
+        const gameId = 'test-decay-6';
+        initSuspicion(gameId, 0, [0, 1]);
+        updateSuspicion(gameId, 0, 1, 'toll_doom'); // +0.1
+        decaySuspicion(gameId);
+        assert.ok(Math.abs(getSuspicion(gameId, 0, 1) - 0.09) < 0.001);
+        clearSuspicion(gameId);
+      });
+    });
+
+    // ---- 12. humanizeEventType ----
+
+    describe("humanizeEventType", function () {
+      it("player_cursed → Player Cursed", async function () {
+        const { humanizeEventType } = await import("../imports/ui/components/game/GameLogPanel.js");
+        assert.strictEqual(humanizeEventType('player_cursed'), 'Player Cursed');
+      });
+
+      it("single word: started → Started", async function () {
+        const { humanizeEventType } = await import("../imports/ui/components/game/GameLogPanel.js");
+        assert.strictEqual(humanizeEventType('started'), 'Started');
+      });
+
+      it("triple segment: round_end_summary → Round End Summary", async function () {
+        const { humanizeEventType } = await import("../imports/ui/components/game/GameLogPanel.js");
+        assert.strictEqual(humanizeEventType('round_end_summary'), 'Round End Summary');
+      });
+
+      it("null → Unknown Event", async function () {
+        const { humanizeEventType } = await import("../imports/ui/components/game/GameLogPanel.js");
+        assert.strictEqual(humanizeEventType(null), 'Unknown Event');
+      });
+
+      it("undefined → Unknown Event", async function () {
+        const { humanizeEventType } = await import("../imports/ui/components/game/GameLogPanel.js");
+        assert.strictEqual(humanizeEventType(undefined), 'Unknown Event');
+      });
+
+      it("empty string → Unknown Event", async function () {
+        const { humanizeEventType } = await import("../imports/ui/components/game/GameLogPanel.js");
+        assert.strictEqual(humanizeEventType(''), 'Unknown Event');
+      });
+
+      it("non-string (42) → Unknown Event", async function () {
+        const { humanizeEventType } = await import("../imports/ui/components/game/GameLogPanel.js");
+        assert.strictEqual(humanizeEventType(42), 'Unknown Event');
+      });
+    });
+
+    // ---- 13. Phase Timer ----
+
+    describe("Phase Timer", function () {
+      it("PhaseDurations has all 6 phases with positive numbers", async function () {
+        const { PhaseDurations } = await import("../imports/game/phaseTimer.js");
+        const phases = ['threat', 'toll', 'discussion', 'action', 'accusation', 'round_end'];
+        for (const phase of phases) {
+          assert.ok(typeof PhaseDurations[phase] === 'number', `${phase} should be a number`);
+          assert.ok(PhaseDurations[phase] > 0, `${phase} should be positive`);
+        }
+      });
+
+      it("duration values match spec (2s/30s/30s/30s/15s/2s)", async function () {
+        const { PhaseDurations } = await import("../imports/game/phaseTimer.js");
+        assert.strictEqual(PhaseDurations.threat, 2000);
+        assert.strictEqual(PhaseDurations.toll, 30000);
+        assert.strictEqual(PhaseDurations.discussion, 30000);
+        assert.strictEqual(PhaseDurations.action, 30000);
+        assert.strictEqual(PhaseDurations.accusation, 15000);
+        assert.strictEqual(PhaseDurations.round_end, 2000);
+      });
+
+      it("unknown phase → no callback, no throw", async function () {
+        const { startPhaseTimer } = await import("../imports/game/phaseTimer.js");
+        let called = false;
+        assert.doesNotThrow(() => {
+          startPhaseTimer('timer-test-1', 'nonexistent_phase', () => { called = true; });
+        });
+        // Wait briefly to confirm callback was not scheduled
+        await new Promise(resolve => setTimeout(resolve, 50));
+        assert.strictEqual(called, false);
+      });
+
+      it("clearPhaseTimer on non-existent timer → no throw", async function () {
+        const { clearPhaseTimer } = await import("../imports/game/phaseTimer.js");
+        assert.doesNotThrow(() => clearPhaseTimer('nonexistent-timer-game'));
+      });
+
+      it("second startPhaseTimer on same gameId cancels first", async function () {
+        this.timeout(5000);
+        const { startPhaseTimer, clearPhaseTimer } = await import("../imports/game/phaseTimer.js");
+        let firstCalled = false;
+        let secondCalled = false;
+        // First timer: threat phase (2s)
+        startPhaseTimer('timer-test-2', 'threat', () => { firstCalled = true; });
+        // Immediately replace with another threat timer
+        startPhaseTimer('timer-test-2', 'threat', () => { secondCalled = true; });
+        // Wait 2.5s — only the second timer should fire
+        await new Promise(resolve => setTimeout(resolve, 2500));
+        assert.strictEqual(firstCalled, false, "first timer should have been cancelled");
+        assert.strictEqual(secondCalled, true, "second timer should have fired");
+        clearPhaseTimer('timer-test-2');
+      });
+    });
   }
 });

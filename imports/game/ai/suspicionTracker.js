@@ -75,6 +75,17 @@ export function getMostSuspicious(gameId, aiSeatIndex) {
   return maxSeat !== null ? { seatIndex: maxSeat, score: maxScore } : null;
 }
 
+// Decay all suspicion scores for a game by a multiplicative rate
+// At 10% decay, each score is multiplied by 0.9 per round
+export function decaySuspicion(gameId, decayRate = 0.1) {
+  const state = getState(gameId);
+  for (const aiSeat of Object.keys(state)) {
+    for (const targetSeat of Object.keys(state[aiSeat])) {
+      state[aiSeat][targetSeat] *= (1 - decayRate);
+    }
+  }
+}
+
 // Clean up state for a finished game
 export function clearSuspicion(gameId) {
   gameState.delete(gameId);

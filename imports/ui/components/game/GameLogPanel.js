@@ -1,5 +1,13 @@
 import m from 'mithril';
 
+// Convert snake_case event types to Title Case for display
+export function humanizeEventType(type) {
+  if (!type || typeof type !== 'string') {
+    return 'Unknown Event';
+  }
+  return type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
 const eventLabels = {
   game_started: 'Game started',
   threats_drawn: 'New threats appeared',
@@ -28,7 +36,7 @@ export const GameLogPanel = {
       m('div.game-log-entries', logs.map(log =>
         m('div.log-entry', { key: log._id }, [
           m('small.log-round', `R${log.round}`),
-          m('span.log-text', eventLabels[log.type] || log.type),
+          m('span.log-text', eventLabels[log.type] || humanizeEventType(log.type)),
         ])
       )),
     ]);
