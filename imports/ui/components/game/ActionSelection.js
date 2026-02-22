@@ -1,0 +1,58 @@
+import m from 'mithril';
+import { Meteor } from 'meteor/meteor';
+
+// Action assignment UI — player picks which threat to target
+// Attrs: game, myPlayer
+export const ActionSelection = {
+  oninit() {
+    this.submitted = false;
+    this.error = null;
+  },
+
+  view(vnode) {
+    const { game, myPlayer } = vnode.attrs;
+
+    if (!myPlayer.hasNextAction) {
+      return m('div.phase-content.action-selection', [
+        m('h3', 'Assign Actions'),
+        m('p', 'You have lost your action this round. Waiting for others...'),
+      ]);
+    }
+
+    if (this.submitted) {
+      return m('div.phase-content.action-selection', [
+        m('h3', 'Assign Actions'),
+        m('p', 'Action assigned. Waiting for other crew members...'),
+      ]);
+    }
+
+    return m('div.phase-content.action-selection', [
+      m('h3', 'Assign Actions'),
+      m('p', `As ${myPlayer.displayName} (${myPlayer.role}), choose a threat to apply your action to.`),
+
+      this.error ? m('p.error-message', this.error) : null,
+
+      m('div.action-targets', game.activeThreats.map(threat =>
+        m('button.action-target', {
+          key: threat.id,
+          onclick: () => this.submitAction(game._id, threat.id),
+        }, [
+          m('strong', threat.name),
+          m('br'),
+          m('small', `${threat.type} | Progress: ${threat.progress}/${threat.threshold}`),
+        ])
+      )),
+    ]);
+  },
+
+  async submitAction(gameId, threatId) {
+    this.error = null;
+    try {
+      await Meteor.callAsync('game.submitAction', gameId, threatId);
+      this.submitted = true;
+    } catch (error) {
+      this.error = error.reason || error.message;
+    }
+    m.redraw();
+  },
+};

@@ -87,8 +87,8 @@ Round flow (Phantom Tides):
 - `imports/ui/components/` - Mithril components including `RequireAuth` and `RequireSubscription` HOCs
 - `imports/ui/pages/` - Route pages including `SsoCallback` for SSO handling
 - `server/accounts.js` - Custom login handler for SSO
-- `server/methods.js` - Meteor methods (chat.send, user.getSubscriptionStatus)
-- `server/publications.js` - Data publications (chatMessages, userData)
+- `server/methods.js` - Meteor methods (user.getSubscriptionStatus, user.hasAccess)
+- `server/publications.js` - Data publications (userData, rooms, game, gameMessages, gameLog)
 - `imports/game/` - Game state machine, round resolution, AI decision engine (planned)
 - `imports/ai/` - AI dialogue templates, cloud LLM proxy, personality system (planned)
 - `imports/voice/` - Voice chat manager, TTS integration, STT handling (planned)

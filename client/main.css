@@ -77,72 +77,6 @@ footer {
   color: var(--pico-muted-color);
 }
 
-/* Chat room styles */
-.chat-container {
-  display: flex;
-  flex-direction: column;
-  height: 60vh;
-  border: 1px solid var(--pico-muted-border-color);
-  border-radius: var(--pico-border-radius);
-  overflow: hidden;
-}
-
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.chat-message {
-  padding: 0.5rem 0.75rem;
-  background: #2e7d32;
-  color: #ffffff;
-  border-radius: var(--pico-border-radius);
-  max-width: 90%;
-  align-self: flex-start;
-}
-
-.chat-message.own-message {
-  align-self: flex-end;
-  background: var(--pico-primary-background);
-  color: var(--pico-primary-inverse);
-}
-
-.chat-message .message-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 1rem;
-  margin-bottom: 0.25rem;
-}
-
-.chat-message .username {
-  font-weight: 600;
-  font-size: 0.875rem;
-}
-
-.chat-message .timestamp {
-  font-size: 0.75rem;
-  opacity: 0.7;
-}
-
-.chat-message .message-text {
-  word-wrap: break-word;
-}
-
-.chat-input-form {
-  padding: 1rem;
-  border-top: 1px solid var(--pico-muted-border-color);
-  margin-bottom: 0;
-}
-
-.chat-input-form [role="group"] {
-  margin-bottom: 0;
-}
-
 /* Loading spinner */
 .loading {
   display: flex;
@@ -198,5 +132,388 @@ footer {
   padding: 1rem;
   border-radius: var(--pico-border-radius);
   border-left: 4px solid var(--pico-ins-color);
+  margin-bottom: 1rem;
+}
+
+/* ===========================
+   Game Styles
+   =========================== */
+
+/* Game container */
+.game-container {
+  max-width: 100%;
+}
+
+/* Game header */
+.game-header {
+  margin-bottom: 1rem;
+}
+
+.game-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.round-display {
+  font-weight: 600;
+}
+
+.phase-display {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--pico-primary);
+}
+
+.countdown-timer {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+/* Doom tracker */
+.doom-tracker {
+  margin-bottom: 1rem;
+}
+
+.doom-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.doom-tracker progress {
+  margin-bottom: 0;
+}
+
+.doom-tracker progress.warning {
+  --pico-progress-color: #e67e22;
+}
+
+.doom-tracker progress.danger {
+  --pico-progress-color: #c0392b;
+}
+
+/* Game layout — main + sidebar */
+.game-layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .game-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.game-main {
+  min-width: 0;
+}
+
+.game-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Threat cards */
+.threat-display h3 {
+  margin-bottom: 0.5rem;
+}
+
+.threat-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.threat-card {
+  margin-bottom: 0;
+  padding: 0.75rem;
+}
+
+.threat-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0;
+  margin-bottom: 0.25rem;
+}
+
+.threat-card .threat-type {
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.threat-card .threat-desc {
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
+  color: var(--pico-muted-color);
+}
+
+.threat-card .threat-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+}
+
+.threat-card progress {
+  margin-bottom: 0;
+  height: 0.5rem;
+}
+
+.threat-card.new-threat {
+  border-left: 3px solid var(--pico-primary);
+}
+
+/* Player panel */
+.player-panel h3 {
+  margin-bottom: 0.5rem;
+}
+
+.crew-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.crew-member {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
+.crew-member:last-child {
+  border-bottom: none;
+}
+
+.crew-member.is-self {
+  background: var(--pico-card-background-color);
+  border-radius: var(--pico-border-radius);
+}
+
+.crew-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.role-badge {
+  text-transform: capitalize;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.crew-stats {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--pico-muted-color);
+  margin-top: 0.15rem;
+}
+
+.curse-count {
+  color: #9b59b6;
+}
+
+.no-action {
+  color: var(--pico-del-color);
+}
+
+/* Phase content */
+.phase-content {
+  margin-top: 1rem;
+}
+
+.phase-content h3 {
+  margin-bottom: 0.5rem;
+}
+
+/* Toll selection */
+.toll-options {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.toll-options button {
+  flex: 1;
+  min-width: 140px;
+  text-align: center;
+}
+
+/* Action selection */
+.action-targets {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.action-target {
+  text-align: left;
+}
+
+/* Action reveal */
+.reveal-group {
+  margin-bottom: 0.75rem;
+}
+
+.reveal-group h4 {
+  margin-bottom: 0.25rem;
+}
+
+.reveal-group ul {
+  margin: 0;
+  padding-left: 1.5rem;
+}
+
+/* Accusation panel */
+.accuse-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.vote-buttons {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Discussion chat */
+.discussion-chat {
+  display: flex;
+  flex-direction: column;
+}
+
+.discussion-messages {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: var(--pico-border-radius);
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.disc-message {
+  font-size: 0.9rem;
+}
+
+.disc-message.own-message {
+  text-align: right;
+}
+
+.disc-name {
+  font-weight: 600;
+  margin-right: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.disc-text {
+  word-wrap: break-word;
+}
+
+.disc-input-form {
+  margin-bottom: 0;
+}
+
+.disc-input-form [role="group"] {
+  margin-bottom: 0;
+}
+
+/* Round end summary */
+.summary-stats {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.summary-stats p {
+  margin-bottom: 0;
+}
+
+/* Game over */
+.game-over {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.game-over article {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.result-text {
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+.final-stats {
+  margin: 1rem 0;
+  text-align: left;
+}
+
+.final-stats p {
+  margin-bottom: 0.25rem;
+}
+
+/* Game log */
+.game-log-panel {
+  font-size: 0.85rem;
+}
+
+.game-log-entries {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.log-entry {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.15rem 0;
+}
+
+.log-round {
+  opacity: 0.6;
+  min-width: 2rem;
+}
+
+/* Lobby waiting */
+.lobby-waiting {
+  text-align: center;
+}
+
+.lobby-waiting header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.lobby-waiting .player-list {
+  list-style: none;
+  padding: 0;
+  text-align: left;
+  max-width: 300px;
+  margin: 1rem auto;
+}
+
+.lobby-waiting .player-list li {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
+.lobby-waiting .muted {
+  color: var(--pico-muted-color);
+  font-size: 0.9rem;
   margin-bottom: 1rem;
 }

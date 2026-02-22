@@ -3,11 +3,30 @@
     "appName": "False Colors",
     "appId": "false_colors",
     "hubUrl": "https://kokokino.com",
-    "requiredProducts": ["base-monthly"]
+    "requiredProducts": ["base-monthly"],
+    "game": {
+      "minPlayers": 4,
+      "maxPlayers": 6,
+      "discussionTimeSec": 30,
+      "roundCount": 10,
+      "doomThreshold": 15
+    }
   },
   "private": {
     "hubApiKey": "YOUR_SPOKE_API_KEY_HERE",
     "hubApiUrl": "https://kokokino.com/api/spoke",
-    "hubPublicKey": "-----BEGIN PUBLIC KEY-----\nYOUR_HUB_PUBLIC_KEY_HERE\n-----END PUBLIC KEY-----"
+    "hubPublicKey": "-----BEGIN PUBLIC KEY-----\nYOUR_HUB_PUBLIC_KEY_HERE\n-----END PUBLIC KEY-----",
+    "ai": {
+      "openRouterApiKey": "YOUR_OPENROUTER_API_KEY",
+      "openRouterModels": [
+        "mistralai/mistral-small-creative",
+        "meta-llama/llama-4-scout",
+        "openai/gpt-4o-mini"
+      ],
+      "openRouterBaseUrl": "https://openrouter.ai/api/v1",
+      "maxCallsPerGame": 20,
+      "maxTokensPerCall": 100,
+      "temperature": 0.8
+    }
   }
 }

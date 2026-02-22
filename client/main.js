@@ -9,13 +9,14 @@ import '@picocss/pico/css/pico.min.css';
 // Import pages
 import { MainLayout } from '../imports/ui/layouts/MainLayout.js';
 import { HomePage } from '../imports/ui/pages/HomePage.js';
+import { GamePage } from '../imports/ui/pages/GamePage.js';
 import { NotLoggedIn } from '../imports/ui/pages/NotLoggedIn.js';
 import { NoSubscription } from '../imports/ui/pages/NoSubscription.js';
 import { SessionExpired } from '../imports/ui/pages/SessionExpired.js';
 import { SsoCallback } from '../imports/ui/pages/SsoCallback.js';
 
 // Import collections for subscriptions
-import '../imports/lib/collections/chatMessages.js';
+import '../imports/lib/collections/games.js';
 
 // Reactive wrapper for Mithril
 // This ensures Mithril redraws when Meteor reactive data changes
@@ -61,12 +62,13 @@ function layoutRoute(component, attrs = {}) {
 function initializeApp() {
   // Create #app element if it doesn't exist
   let root = document.getElementById('app');
-  
+
   // Set up routes
   m.route.prefix = '';
 
   m.route(root, '/', {
     '/': layoutRoute(HomePage),
+    '/game/:roomId': layoutRoute(GamePage),
     '/not-logged-in': layoutRoute(NotLoggedIn),
     '/no-subscription': layoutRoute(NoSubscription),
     '/session-expired': layoutRoute(SessionExpired),

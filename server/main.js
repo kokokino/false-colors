@@ -8,21 +8,32 @@ import './indexes.js';
 import './rateLimiting.js';
 import './migrations/0_steps.js';
 
+// Game modules
+import './roomMethods.js';
+import './gameMethods.js';
+import './aiMethods.js';
+
+// Room cleanup
+import { startRoomCleanup } from './roomCleanup.js';
+
 Meteor.startup(async () => {
   console.log('False Colors started');
-  
+
   // Verify required settings are present
   const settings = Meteor.settings;
-  
+
   if (!settings.public?.hubUrl) {
     console.warn('Warning: settings.public.hubUrl is not configured');
   }
-  
+
   if (!settings.private?.hubApiKey) {
     console.warn('Warning: settings.private.hubApiKey is not configured');
   }
-  
+
   if (!settings.private?.hubPublicKey) {
     console.warn('Warning: settings.private.hubPublicKey is not configured');
   }
+
+  // Start periodic room cleanup
+  startRoomCleanup();
 });
