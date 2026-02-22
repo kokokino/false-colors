@@ -103,6 +103,171 @@ const templates = {
     ],
   },
 
+  tollObservation: {
+    terse: [
+      '{doom_tolls} doom choices. Not good.',
+      'Too many picking doom. Someone explain.',
+      '{doom_tolls} went with doom this round. Watch who.',
+    ],
+    worried: [
+      '{doom_tolls} doom choices this round... are we being sabotaged?',
+      'So many people picked doom! We can\'t afford this!',
+      'Why is everyone choosing doom? This is terrifying.',
+    ],
+    cheerful: [
+      'Rough round on tolls — {doom_tolls} doom picks. We\'ll bounce back!',
+      'That\'s a lot of doom choices. Let\'s do better next time, crew!',
+      '{doom_tolls} doom? Alright, we\'ve had worse!',
+    ],
+    analytical: [
+      '{doom_tolls} doom, {resolve_tolls} resolve, {curse_tolls} curse. That\'s a concerning ratio.',
+      'Statistically, {doom_tolls} doom choices in one round is unusual. Worth noting.',
+      'The toll distribution suggests at least one player is avoiding personal cost.',
+    ],
+    bold: [
+      '{doom_tolls} doom picks? Come on, crew, show some backbone!',
+      'Who keeps choosing doom? Cowards or saboteurs.',
+      'Doom\'s piling up because someone won\'t sacrifice. Step up.',
+    ],
+    solemn: [
+      '{doom_tolls} chose the path of doom. The sea grows hungrier.',
+      'So much doom chosen freely. Are we cursed from within?',
+      'The toll reveals the soul. {doom_tolls} doom choices trouble me.',
+    ],
+  },
+
+  actionObservation: {
+    terse: [
+      'Why did {action_player} target {action_threat}? Off-specialty.',
+      '{action_player} wasted their action. Noted.',
+      '{action_player} could\'ve done more on {action_specialty}.',
+    ],
+    worried: [
+      'Did anyone notice {action_player} targeted {action_threat}? Their specialty is {action_specialty}...',
+      'I\'m worried about {action_player}\'s choices. That wasn\'t optimal.',
+      'Why would {action_player} go for {action_threat} when they\'re better elsewhere?',
+    ],
+    cheerful: [
+      'Hey {action_player}, why {action_threat}? Your specialty is elsewhere, friend!',
+      '{action_player}, buddy, you could\'ve done more damage on your specialty!',
+      'Just an observation — {action_player} didn\'t use their specialty. Maybe next round!',
+    ],
+    analytical: [
+      '{action_player} targeted {action_threat} instead of their specialty type. Suboptimal by significant margin.',
+      'Interesting choice by {action_player}. Their role strength is wasted on {action_threat}.',
+      'The data shows {action_player} consistently ignoring their specialty advantage.',
+    ],
+    bold: [
+      '{action_player}, what are you doing targeting {action_threat}? Fight where you\'re strong!',
+      'Either {action_player} doesn\'t know their role or they\'re not trying.',
+      '{action_player}! You had one job — target your specialty!',
+    ],
+    solemn: [
+      'The spirits question {action_player}\'s choice. {action_threat} was not their calling.',
+      '{action_player} strays from their purpose. This concerns me.',
+      'One wonders why {action_player} turned from their true strength.',
+    ],
+  },
+
+  cookObservation: {
+    terse: [
+      '{cook_name} healed {player_name}. Interesting.',
+      'Cook chose {player_name}. Others needed it more.',
+      'Nourish went to {player_name}. Questionable.',
+    ],
+    worried: [
+      'Why did {cook_name} heal {player_name}? Others were in worse shape!',
+      'The Cook\'s choice worries me. {player_name} didn\'t need it most.',
+      'Someone at zero resolve was ignored by the Cook...',
+    ],
+    cheerful: [
+      '{cook_name} nourished {player_name}! Good to see the crew looking out for each other.',
+      'Nice choice, {cook_name}! Keep those meals coming!',
+      'Another meal well spent by {cook_name}!',
+    ],
+    analytical: [
+      '{cook_name} nourished {player_name}. Based on resolve levels, this was suboptimal.',
+      'The Cook\'s target selection pattern is worth tracking.',
+      'Cook healed {player_name} at higher resolve when lower-resolve targets existed.',
+    ],
+    bold: [
+      '{cook_name}, why {player_name}? Others need it more!',
+      'Cook needs to prioritize better. {player_name} was fine.',
+      'Meals are limited! Make them count, {cook_name}!',
+    ],
+    solemn: [
+      'The Cook\'s mercy fell upon {player_name}. Was it wisdom or design?',
+      '{cook_name} chose carefully. Or perhaps carelessly.',
+      'Five meals for the voyage. Each choice reveals the Cook\'s heart.',
+    ],
+  },
+
+  phantomRevealedReaction: {
+    terse: [
+      'Knew it. {player_name} was the phantom.',
+      'Phantom found. Stay focused.',
+      '{player_name} revealed. Keep moving.',
+    ],
+    worried: [
+      'Oh thank goodness! {player_name} was the phantom all along!',
+      'I can\'t believe it was {player_name}... at least we know now.',
+      'We found the phantom, but can we still survive?',
+    ],
+    cheerful: [
+      'Ha! Got you, {player_name}! The phantom is exposed!',
+      'One mystery solved! Now let\'s finish this voyage!',
+      'Phantom unmasked! Things are looking up, crew!',
+    ],
+    analytical: [
+      'Phantom confirmed as {player_name}. Their behavioral pattern now makes sense.',
+      '{player_name} is the phantom. Doom reduced by 3. Let\'s reassess our position.',
+      'The data was right. {player_name}\'s action history was 40% suboptimal.',
+    ],
+    bold: [
+      'I knew {player_name} was rotten! Phantom exposed!',
+      '{player_name}! Caught red-handed. Justice is served.',
+      'That\'s what you get, {player_name}. The crew sees all.',
+    ],
+    solemn: [
+      'The phantom walks revealed among us. {player_name}, your shadows are lifted.',
+      'Truth pierces the veil at last. {player_name} was the betrayer.',
+      'The sea strips all masks eventually. {player_name} is the phantom.',
+    ],
+  },
+
+  scoreObservation: {
+    terse: [
+      '{coins} coins, {skulls} skulls. Need more coins.',
+      'Score: {coins} to {skulls}. We need to resolve threats.',
+      'Coin deficit. Focus up.',
+    ],
+    worried: [
+      'We have {coins} coins and {skulls} skulls. We\'re losing!',
+      'The skulls are piling up! We need more gold!',
+      'At this rate we won\'t have enough coins. What do we do?',
+    ],
+    cheerful: [
+      '{coins} gold coins so far! Let\'s keep racking them up!',
+      'We\'ve got {coins} coins and {skulls} skulls — we can still win this!',
+      'Every threat we defeat is another coin. Let\'s go!',
+    ],
+    analytical: [
+      'Score is {coins} coins versus {skulls} skulls. We need coins > skulls to win.',
+      'At current rate, we\'re projected to end with a coin deficit. Prioritize threat resolution.',
+      '{coins}/{skulls} coin-to-skull ratio. Each unresolved escalated threat costs a skull.',
+    ],
+    bold: [
+      '{coins} coins? We can do better! Smash those threats!',
+      'Only {skulls} skulls — not bad. Let\'s earn more gold!',
+      'Score\'s tight. Time to fight harder.',
+    ],
+    solemn: [
+      '{coins} blessings and {skulls} curses mark our voyage so far.',
+      'The scales of fortune weigh {coins} against {skulls}. We must tip them.',
+      'Gold and skulls... the sea keeps its tally.',
+    ],
+  },
+
   accusation: {
     terse: [
       'I\'ve been watching {player_name}. Something\'s off.',

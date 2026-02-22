@@ -3,21 +3,39 @@
 
 const phaseTimers = new Map();
 
-// Phase durations in milliseconds
-export const PhaseDurations = {
-  threat: 2000,       // Auto display
-  toll: 30000,        // 30s for player choice
-  discussion: 30000,  // 30s for chat
-  action: 30000,      // 30s for action assignment
-  accusation: 15000,  // 15s window
-  round_end: 2000,    // Auto display
+// Phase durations in milliseconds — novice (default) and expert modes
+export const PhaseDurationsNovice = {
+  threat: 3000,
+  toll: 45000,
+  discussion: 60000,
+  action: 45000,
+  accusation: 30000,
+  round_end: 15000,
 };
 
+export const PhaseDurationsExpert = {
+  threat: 2000,
+  toll: 30000,
+  discussion: 45000,
+  action: 30000,
+  accusation: 20000,
+  round_end: 10000,
+};
+
+// Legacy export for backward compatibility in tests
+export const PhaseDurations = PhaseDurationsNovice;
+
+// Get duration for a phase based on expert mode
+export function getPhaseDuration(phase, expertMode) {
+  const durations = expertMode ? PhaseDurationsExpert : PhaseDurationsNovice;
+  return durations[phase] || 30000;
+}
+
 // Start a timer for the current phase — calls onExpire when time's up
-export function startPhaseTimer(gameId, phase, onExpire) {
+export function startPhaseTimer(gameId, phase, onExpire, expertMode) {
   clearPhaseTimer(gameId);
 
-  const duration = PhaseDurations[phase];
+  const duration = getPhaseDuration(phase, expertMode);
   if (!duration) {
     return;
   }

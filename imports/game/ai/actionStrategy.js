@@ -9,7 +9,9 @@ function threatPriority(threat, role) {
   const remaining = threat.threshold - threat.progress;
   const urgency = threat.doomPerRound * remaining;
   const completionBonus = (remaining <= strength) ? threat.doomPerRound * 3 : 0;
-  return (urgency + completionBonus) * strength;
+  // Escalated threats get a bonus to attract attention
+  const escalationBonus = threat.escalated ? threat.doomPerRound * 2 : 0;
+  return (urgency + completionBonus + escalationBonus) * strength;
 }
 
 // Loyal AI action choice — pick the highest-utility threat
@@ -48,7 +50,7 @@ export function chooseLoyalAction(player, game, personality) {
 }
 
 // Phantom AI action choice — target suboptimally but defensibly
-// actionOptimality: high = more subtle (cooperates more, picks 2nd), low = blunt (picks 3rd more)
+// Revealed phantom: always pick lowest-priority threat (waste capped strength)
 export function choosePhantomAction(player, game, personality, round) {
   const role = Object.values(Roles).find(r => r.id === player.role);
   if (!role) {
@@ -57,6 +59,16 @@ export function choosePhantomAction(player, game, personality, round) {
   }
   if (game.activeThreats.length === 0) {
     return null;
+  }
+
+  // Revealed phantom: always waste action on lowest-priority threat
+  if (player.phantomRevealed) {
+    const scored = game.activeThreats.map(threat => ({
+      threatId: threat.id,
+      score: threatPriority(threat, role),
+    }));
+    scored.sort((a, b) => a.score - b.score); // ascending — pick worst
+    return scored[0].threatId;
   }
 
   const traits = personality.traits;
@@ -70,7 +82,6 @@ export function choosePhantomAction(player, game, personality, round) {
   scored.sort((a, b) => b.score - a.score);
 
   // Early game: cooperate proportional to actionOptimality
-  // High optimality = cooperate more (subtle phantom), low = less cooperative
   const cooperateChance = 0.2 + (traits.actionOptimality * 0.3);
   if (gameProgress < 0.3 && Math.random() < cooperateChance) {
     return scored[0].threatId;

@@ -7,7 +7,7 @@ import { convertToAi } from '../imports/game/stateMachine.js';
 // Grace timers for disconnected players — keyed by "gameId_seatIndex"
 const disconnectTimers = new Map();
 
-// Publish current user's subscription data
+// Publish current user's subscription data and expert mode
 Meteor.publish('userData', function() {
   if (!this.userId) {
     return this.ready();
@@ -20,7 +20,8 @@ Meteor.publish('userData', function() {
         username: 1,
         emails: 1,
         subscriptions: 1,
-        'services.sso.hubUserId': 1
+        'services.sso.hubUserId': 1,
+        isExpertPlayer: 1,
       }
     }
   );
@@ -77,6 +78,7 @@ Meteor.publish('rooms.current', function(roomId) {
 // Game publication — uses observeChanges to strip secrets
 // NEVER publishes: players[].isAI, actionSubmissions, tollSubmissions, llmCallsUsed, threatDeck
 // After game ends: players[].alignment IS revealed, lookoutReveal is no longer stripped
+// Phantom-revealed players: alignment is published during game
 Meteor.publish('game', async function(gameId) {
   check(gameId, String);
   if (!this.userId) {
@@ -149,7 +151,12 @@ function stripSecrets(fields, currentPhase, isLookout) {
         const { isAI, ...publicFields } = p;
         return publicFields;
       }
-      const { alignment, isAI, ...publicFields } = p;
+      // During game: reveal alignment for phantom-revealed players
+      const { isAI, ...withAlignment } = p;
+      if (p.phantomRevealed) {
+        return withAlignment;
+      }
+      const { alignment, ...publicFields } = withAlignment;
       return publicFields;
     });
   }

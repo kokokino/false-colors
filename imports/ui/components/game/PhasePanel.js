@@ -40,7 +40,7 @@ export const PhasePanel = {
         return m(AccusationPanel, { game, myPlayer });
 
       case 'round_end':
-        return m(RoundEndSummary, { game });
+        return m(RoundEndSummary, { game, myPlayer });
 
       default:
         return m('p', 'Unknown phase');

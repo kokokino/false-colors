@@ -4,13 +4,15 @@ const resultMessages = {
   loyal_win: 'The loyal crew prevails!',
   phantom_win: 'The phantom has doomed the ship!',
   doom_loss: 'The doom has consumed the vessel. All is lost.',
+  crew_loss: 'You reached the Sunken Crown, but the voyage cost too much.',
 };
 
 const reasonMessages = {
   phantom_caught: 'The phantom was unmasked and thrown overboard.',
-  survived_all_rounds: 'The crew survived all rounds and reached safe harbor.',
+  survived_all_rounds: 'The crew survived all rounds and reached the Sunken Crown.',
   all_threats_cleared: 'Every threat was conquered. The seas are calm.',
   doom_threshold: 'Doom reached the breaking point. The ship is lost.',
+  skulls_exceed_coins: 'Too many skulls accumulated — the voyage was a pyrrhic victory.',
 };
 
 const roleNames = {
@@ -22,12 +24,14 @@ const roleNames = {
   cook: 'Cook',
 };
 
-// Game over screen
+// Game over screen with scoring
 // Attrs: game
 export const GameOverScreen = {
   view(vnode) {
     const game = vnode.attrs.game;
     const isVictory = game.result === 'loyal_win';
+    const coins = (game.goldCoins || []).length;
+    const skulls = (game.skulls || []).length;
 
     return m('div.game-over', [
       m('article', [
@@ -40,7 +44,28 @@ export const GameOverScreen = {
         m('div.final-stats', [
           m('p', `Final doom: ${game.doomLevel} / ${game.doomThreshold}`),
           m('p', `Rounds completed: ${game.currentRound} / ${game.maxRounds}`),
+          m('p', `Threats defeated: ${game.threatsDefeated || 0}`),
           m('p', `Threats remaining: ${game.activeThreats.length}`),
+        ]),
+
+        m('div.scoring-final', [
+          m('h3', 'Voyage Score'),
+          m('div.score-summary', [
+            m('span.coins-final', `Gold Coins: ${coins}`),
+            m('span.skulls-final', `Skulls: ${skulls}`),
+          ]),
+          coins > 0 ? m('details', [
+            m('summary', 'Gold Coins earned'),
+            m('ul', (game.goldCoins || []).map((c, i) =>
+              m('li', { key: i }, `Round ${c.round}: ${c.description}`)
+            )),
+          ]) : null,
+          skulls > 0 ? m('details', [
+            m('summary', 'Skulls accumulated'),
+            m('ul', (game.skulls || []).map((s, i) =>
+              m('li', { key: i }, `Round ${s.round}: ${s.description}`)
+            )),
+          ]) : null,
         ]),
 
         m('h3', 'Crew Manifest'),

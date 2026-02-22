@@ -9,10 +9,9 @@ function getRoleById(roleId) {
 }
 
 // Resolve all toll submissions simultaneously
-// Each player chose: 'supply' (lose 1 supply), 'doom' (add 1 doom), or 'curse' (draw curse)
+// Each player chose: 'resolve' (lose 1 resolve), 'doom' (add 1 doom), or 'curse' (draw curse)
 export function resolveTolls(game, submissions) {
   let doomIncrease = 0;
-  let shipSupplies = game.shipSupplies || 0;
   const updatedPlayers = [...game.players.map(p => ({ ...p }))];
 
   for (const sub of submissions) {
@@ -27,14 +26,12 @@ export function resolveTolls(game, submissions) {
     const hasMadness = player.curses.some(c => c.effect === 'tollPenalty');
 
     switch (sub.choice) {
-      case 'supply':
-        if (player.supplies > 0) {
+      case 'resolve':
+        if (player.resolve > 0) {
           updatedPlayers[playerIndex] = {
             ...player,
-            supplies: player.supplies - 1,
+            resolve: player.resolve - 1,
           };
-        } else if (shipSupplies > 0) {
-          shipSupplies -= 1;
         }
         if (hasMadness) {
           doomIncrease += 1;
@@ -59,10 +56,24 @@ export function resolveTolls(game, submissions) {
     }
   }
 
+  // Compute toll aggregate for visibility
+  let resolveCount = 0;
+  let doomCount = 0;
+  let curseCount = 0;
+  for (const sub of submissions) {
+    if (sub.choice === 'resolve') {
+      resolveCount++;
+    } else if (sub.choice === 'doom') {
+      doomCount++;
+    } else if (sub.choice === 'curse') {
+      curseCount++;
+    }
+  }
+
   return {
     players: updatedPlayers,
     doomLevel: Math.min(game.doomLevel + doomIncrease, game.doomThreshold + 10),
-    shipSupplies,
+    tollAggregate: { resolveCount, doomCount, curseCount },
   };
 }
 
@@ -73,6 +84,8 @@ export function resolveActions(game, submissions) {
 
   // Calculate strength contributions per threat
   const threatStrengths = {};
+  // Track per-player strength for the reveal
+  const playerStrengths = {};
   for (const sub of submissions) {
     const player = game.players.find(p => p.seatIndex === sub.seatIndex);
     if (!player || !player.hasNextAction) {
@@ -98,10 +111,21 @@ export function resolveActions(game, submissions) {
       strength = Math.max(strength - 1, 0);
     }
 
+    // Zero resolve penalty: -1 action strength (min 0)
+    if (player.resolve <= 0) {
+      strength = Math.max(strength - 1, 0);
+    }
+
+    // Revealed phantom: action strength capped at 1
+    if (player.phantomRevealed) {
+      strength = Math.min(strength, 1);
+    }
+
     if (!threatStrengths[sub.threatId]) {
       threatStrengths[sub.threatId] = 0;
     }
     threatStrengths[sub.threatId] += strength;
+    playerStrengths[sub.seatIndex] = strength;
   }
 
   // Apply strengths to threats and check completion
@@ -117,20 +141,24 @@ export function resolveActions(game, submissions) {
   // Remove completed threats
   const remainingThreats = updatedThreats.filter(t => !completedThreatIds.includes(t.id));
 
+  // Collect completed threat names for scoring
+  const completedThreats = updatedThreats.filter(t => completedThreatIds.includes(t.id));
+
   return {
     activeThreats: remainingThreats,
+    completedThreats,
+    playerStrengths,
   };
 }
 
 // Resolve an accusation vote
-// Returns { correct, updatedPlayers } where correct means the accused IS the phantom
+// Returns { correct, updatedPlayers, doomChange, goldCoin, skull } where correct means the accused IS the phantom
 export function resolveAccusation(game, accusation) {
   const { accuserSeat, targetSeat, votes } = accusation;
 
   // Count votes (majority needed)
   let votesFor = 0;
   let votesAgainst = 0;
-  const voterCount = votes ? votes.length : 0;
 
   if (votes) {
     for (const vote of votes) {
@@ -154,11 +182,11 @@ export function resolveAccusation(game, accusation) {
   const correct = target && target.alignment === Alignment.PHANTOM;
 
   if (!correct) {
-    // Wrong accusation — accuser loses next action
+    // Wrong accusation — accuser loses next action + 3 doom + 1 skull
     // Unless target has phantom_whisper curse (accusationPenalty), which protects them
     const hasPhantomWhisper = target && target.curses.some(c => c.effect === 'accusationPenalty');
     if (hasPhantomWhisper) {
-      return { correct: false, convicted: true };
+      return { correct: false, convicted: true, doomChange: 3, skull: { round: game.currentRound, reason: 'false_accusation', description: 'False accusation' } };
     }
     const updatedPlayers = game.players.map(p => {
       if (p.seatIndex === accuserSeat) {
@@ -166,15 +194,34 @@ export function resolveAccusation(game, accusation) {
       }
       return { ...p };
     });
-    return { correct: false, convicted: true, updatedPlayers };
+    return {
+      correct: false,
+      convicted: true,
+      updatedPlayers,
+      doomChange: 3,
+      skull: { round: game.currentRound, reason: 'false_accusation', description: 'False accusation' },
+    };
   }
 
-  return { correct: true, convicted: true };
+  // Correct accusation — phantom revealed but stays in game
+  const updatedPlayers = game.players.map(p => {
+    if (p.seatIndex === targetSeat) {
+      return { ...p, phantomRevealed: true };
+    }
+    return { ...p };
+  });
+  return {
+    correct: true,
+    convicted: true,
+    updatedPlayers,
+    doomChange: -3,
+    goldCoin: { round: game.currentRound, reason: 'phantom_unmasked', description: 'Phantom unmasked' },
+  };
 }
 
 // Check if the game should end
 export function checkGameEnd(game) {
-  // Doom reached threshold — phantom wins (or everyone loses)
+  // Doom reached threshold — instant loss (phantom wins or everyone loses)
   if (game.doomLevel >= game.doomThreshold) {
     const hasPhantom = game.players.some(p => p.alignment === Alignment.PHANTOM);
     return {
@@ -184,21 +231,39 @@ export function checkGameEnd(game) {
     };
   }
 
-  // All rounds complete — loyal win (survived)
+  // All rounds complete — compare coins to skulls
   if (game.currentRound >= game.maxRounds) {
+    const coins = (game.goldCoins || []).length;
+    const skulls = (game.skulls || []).length;
+    if (coins > skulls) {
+      return {
+        ended: true,
+        result: GameResult.LOYAL_WIN,
+        reason: 'survived_all_rounds',
+      };
+    }
     return {
       ended: true,
-      result: GameResult.LOYAL_WIN,
-      reason: 'survived_all_rounds',
+      result: GameResult.CREW_LOSS,
+      reason: 'skulls_exceed_coins',
     };
   }
 
-  // All active threats cleared and no threats left in deck
+  // All active threats cleared and no threats left in deck — check scoring
   if (game.activeThreats.length === 0 && game.threatDeck.length === 0) {
+    const coins = (game.goldCoins || []).length;
+    const skulls = (game.skulls || []).length;
+    if (coins > skulls) {
+      return {
+        ended: true,
+        result: GameResult.LOYAL_WIN,
+        reason: 'all_threats_cleared',
+      };
+    }
     return {
       ended: true,
-      result: GameResult.LOYAL_WIN,
-      reason: 'all_threats_cleared',
+      result: GameResult.CREW_LOSS,
+      reason: 'skulls_exceed_coins',
     };
   }
 

@@ -1,7 +1,7 @@
 import m from 'mithril';
 import { Meteor } from 'meteor/meteor';
 
-// Toll choice UI — player picks supply/doom/curse
+// Toll choice UI — player picks resolve/doom/curse
 // Attrs: game, myPlayer
 export const TollSelection = {
   oninit() {
@@ -11,6 +11,17 @@ export const TollSelection = {
 
   view(vnode) {
     const { game, myPlayer } = vnode.attrs;
+
+    // Revealed phantom: forced to doom
+    if (myPlayer.phantomRevealed) {
+      if (!this.submitted) {
+        this.submitToll(game._id, 'doom');
+      }
+      return m('div.phase-content.toll-selection', [
+        m('h3', 'Pay the Toll'),
+        m('p', 'As a revealed phantom, you are forced to add doom.'),
+      ]);
+    }
 
     if (this.submitted) {
       return m('div.phase-content.toll-selection', [
@@ -27,14 +38,12 @@ export const TollSelection = {
 
       m('div.toll-options', [
         m('button', {
-          onclick: () => this.submitToll(game._id, 'supply'),
-          disabled: myPlayer.supplies <= 0 && (game.shipSupplies || 0) <= 0,
+          onclick: () => this.submitToll(game._id, 'resolve'),
+          disabled: myPlayer.resolve <= 0,
         }, [
-          m('strong', 'Lose 1 Supply'),
+          m('strong', 'Sacrifice Resolve'),
           m('br'),
-          m('small', myPlayer.supplies > 0
-            ? `Personal: ${myPlayer.supplies}`
-            : `Ship stores: ${game.shipSupplies || 0}`),
+          m('small', `Resolve: ${myPlayer.resolve}`),
         ]),
 
         m('button.secondary', {

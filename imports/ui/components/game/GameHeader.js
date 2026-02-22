@@ -12,7 +12,7 @@ const phaseLabels = {
   finished: 'Game Over',
 };
 
-// Game header — round, doom, phase, timer
+// Game header — round, doom, phase, timer, scoring
 // Attrs: game
 export const GameHeader = {
   view(vnode) {
@@ -20,6 +20,9 @@ export const GameHeader = {
     if (!game) {
       return null;
     }
+
+    const coins = (game.goldCoins || []).length;
+    const skulls = (game.skulls || []).length;
 
     return m('div.game-header', [
       m('div.game-info-row', [
@@ -30,9 +33,12 @@ export const GameHeader = {
           : null,
       ]),
       m(DoomTracker, { doomLevel: game.doomLevel, doomThreshold: game.doomThreshold }),
-      m('div.ship-supplies', [
-        m('span', 'Ship Stores'),
-        m('span', `${game.shipSupplies ?? 0} / 10`),
+      m('div.scoring-display', [
+        m('span.coins-display', `Gold: ${coins}`),
+        m('span.skulls-display', `Skulls: ${skulls}`),
+      ]),
+      m('div.threat-count', [
+        m('span', `Active Threats: ${game.activeThreats.length}`),
       ]),
     ]);
   },

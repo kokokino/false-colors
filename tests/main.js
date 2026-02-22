@@ -112,7 +112,7 @@ describe("false_colors", function () {
     describe("Hub Client Functions", function () {
       it("exports required functions", async function () {
         const hubClient = await import("../imports/hub/client.js");
-        
+
         assert.ok(typeof hubClient.hubApiRequest === "function");
         assert.ok(typeof hubClient.validateToken === "function");
         assert.ok(typeof hubClient.checkSubscriptionWithHub === "function");
@@ -143,25 +143,30 @@ describe("false_colors", function () {
       return {
         _id: 'test-game',
         players: [
-          { seatIndex: 0, supplies: 3, curses: [], role: 'navigator', alignment: 'loyal', hasNextAction: true, displayName: 'Alice' },
-          { seatIndex: 1, supplies: 3, curses: [], role: 'gunner', alignment: 'loyal', hasNextAction: true, displayName: 'Bob' },
-          { seatIndex: 2, supplies: 3, curses: [], role: 'surgeon', alignment: 'loyal', hasNextAction: true, displayName: 'Carol' },
-          { seatIndex: 3, supplies: 3, curses: [], role: 'quartermaster', alignment: 'phantom', hasNextAction: true, displayName: 'Dave' },
+          { seatIndex: 0, resolve: 3, curses: [], role: 'navigator', alignment: 'loyal', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Alice' },
+          { seatIndex: 1, resolve: 3, curses: [], role: 'gunner', alignment: 'loyal', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Bob' },
+          { seatIndex: 2, resolve: 3, curses: [], role: 'surgeon', alignment: 'loyal', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Carol' },
+          { seatIndex: 3, resolve: 3, curses: [], role: 'quartermaster', alignment: 'phantom', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Dave' },
         ],
         doomLevel: 0,
         doomThreshold: 15,
-        shipSupplies: 5,
         activeThreats: [],
         threatDeck: [],
         currentRound: 1,
         maxRounds: 10,
         llmCallsUsed: 0,
+        goldCoins: [],
+        skulls: [],
+        threatsDefeated: 0,
+        readyPlayers: [],
+        tollAggregate: null,
+        expertMode: false,
         ...overrides,
       };
     }
 
     function makeThreat(overrides = {}) {
-      return { id: 't1', type: 'fog', name: 'Test Fog', threshold: 4, doomPerRound: 1, progress: 0, roundAdded: 1, ...overrides };
+      return { id: 't1', type: 'fog', name: 'Test Fog', threshold: 4, doomPerRound: 1, progress: 0, roundAdded: 1, totalDoomCaused: 0, escalated: false, ...overrides };
     }
 
     // ---- 1. Roles ----
@@ -274,36 +279,22 @@ describe("false_colors", function () {
     // ---- 4. Resolution ----
 
     describe("Resolution — resolveTolls", function () {
-      it("supply toll reduces player supplies by 1", async function () {
+      it("resolve toll reduces player resolve by 1", async function () {
         const { resolveTolls } = await import("../imports/game/resolution.js");
         const game = makeGame();
-        const result = resolveTolls(game, [{ seatIndex: 0, choice: 'supply' }]);
-        assert.strictEqual(result.players[0].supplies, 2);
+        const result = resolveTolls(game, [{ seatIndex: 0, choice: 'resolve' }]);
+        assert.strictEqual(result.players[0].resolve, 2);
       });
 
-      it("supply toll with 0 personal supplies drains ship supplies", async function () {
+      it("resolve toll with 0 resolve does not go negative", async function () {
         const { resolveTolls } = await import("../imports/game/resolution.js");
         const game = makeGame({
           players: [
-            { seatIndex: 0, supplies: 0, curses: [], role: 'navigator', alignment: 'loyal', hasNextAction: true, displayName: 'Alice' },
+            { seatIndex: 0, resolve: 0, curses: [], role: 'navigator', alignment: 'loyal', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Alice' },
           ],
-          shipSupplies: 5,
         });
-        const result = resolveTolls(game, [{ seatIndex: 0, choice: 'supply' }]);
-        assert.strictEqual(result.shipSupplies, 4);
-      });
-
-      it("supply toll with 0 personal and 0 ship supplies does not crash", async function () {
-        const { resolveTolls } = await import("../imports/game/resolution.js");
-        const game = makeGame({
-          players: [
-            { seatIndex: 0, supplies: 0, curses: [], role: 'navigator', alignment: 'loyal', hasNextAction: true, displayName: 'Alice' },
-          ],
-          shipSupplies: 0,
-        });
-        const result = resolveTolls(game, [{ seatIndex: 0, choice: 'supply' }]);
-        assert.strictEqual(result.players[0].supplies, 0);
-        assert.strictEqual(result.shipSupplies, 0);
+        const result = resolveTolls(game, [{ seatIndex: 0, choice: 'resolve' }]);
+        assert.strictEqual(result.players[0].resolve, 0);
       });
 
       it("doom toll increases doom by 1", async function () {
@@ -326,7 +317,7 @@ describe("false_colors", function () {
         const madnessCurse = { id: 'sea_madness', name: 'Sea Madness', effect: 'tollPenalty', value: 1, description: 'test' };
         const game = makeGame({
           players: [
-            { seatIndex: 0, supplies: 3, curses: [madnessCurse], role: 'navigator', alignment: 'loyal', hasNextAction: true, displayName: 'Alice' },
+            { seatIndex: 0, resolve: 3, curses: [madnessCurse], role: 'navigator', alignment: 'loyal', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Alice' },
           ],
           doomLevel: 0,
         });
@@ -338,13 +329,13 @@ describe("false_colors", function () {
         const { resolveTolls } = await import("../imports/game/resolution.js");
         const game = makeGame({ doomLevel: 0 });
         const result = resolveTolls(game, [
-          { seatIndex: 0, choice: 'supply' },
+          { seatIndex: 0, choice: 'resolve' },
           { seatIndex: 1, choice: 'doom' },
-          { seatIndex: 2, choice: 'supply' },
+          { seatIndex: 2, choice: 'resolve' },
         ]);
-        assert.strictEqual(result.players[0].supplies, 2);
+        assert.strictEqual(result.players[0].resolve, 2);
         assert.strictEqual(result.doomLevel, 1);
-        assert.strictEqual(result.players[2].supplies, 2);
+        assert.strictEqual(result.players[2].resolve, 2);
       });
 
       it("doom is capped at threshold + 10", async function () {
@@ -352,6 +343,20 @@ describe("false_colors", function () {
         const game = makeGame({ doomLevel: 24, doomThreshold: 15 });
         const result = resolveTolls(game, [{ seatIndex: 0, choice: 'doom' }]);
         assert.strictEqual(result.doomLevel, 25);
+      });
+
+      it("returns tollAggregate with correct counts", async function () {
+        const { resolveTolls } = await import("../imports/game/resolution.js");
+        const game = makeGame({ doomLevel: 0 });
+        const result = resolveTolls(game, [
+          { seatIndex: 0, choice: 'resolve' },
+          { seatIndex: 1, choice: 'doom' },
+          { seatIndex: 2, choice: 'doom' },
+          { seatIndex: 3, choice: 'curse' },
+        ]);
+        assert.strictEqual(result.tollAggregate.resolveCount, 1);
+        assert.strictEqual(result.tollAggregate.doomCount, 2);
+        assert.strictEqual(result.tollAggregate.curseCount, 1);
       });
     });
 
@@ -380,6 +385,7 @@ describe("false_colors", function () {
         // Navigator adds 3, 1+3=4 >= threshold 4
         const result = resolveActions(game, [{ seatIndex: 0, threatId: 't1' }]);
         assert.strictEqual(result.activeThreats.length, 0);
+        assert.strictEqual(result.completedThreats.length, 1);
       });
 
       it("weakened arm curse reduces strength by 1 (min 0)", async function () {
@@ -388,7 +394,7 @@ describe("false_colors", function () {
         const threat = makeThreat({ id: 't1', type: 'fog', threshold: 10, progress: 0 });
         const game = makeGame({
           players: [
-            { seatIndex: 0, supplies: 3, curses: [weakenedArm], role: 'navigator', alignment: 'loyal', hasNextAction: true, displayName: 'Alice' },
+            { seatIndex: 0, resolve: 3, curses: [weakenedArm], role: 'navigator', alignment: 'loyal', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Alice' },
           ],
           activeThreats: [threat],
         });
@@ -402,7 +408,7 @@ describe("false_colors", function () {
         const threat = makeThreat({ id: 't1', type: 'fog', threshold: 10, progress: 0 });
         const game = makeGame({
           players: [
-            { seatIndex: 0, supplies: 3, curses: [], role: 'navigator', alignment: 'loyal', hasNextAction: false, displayName: 'Alice' },
+            { seatIndex: 0, resolve: 3, curses: [], role: 'navigator', alignment: 'loyal', hasNextAction: false, hasAccused: false, phantomRevealed: false, displayName: 'Alice' },
           ],
           activeThreats: [threat],
         });
@@ -421,10 +427,50 @@ describe("false_colors", function () {
         ]);
         assert.strictEqual(result.activeThreats[0].progress, 4);
       });
+
+      it("zero resolve penalty reduces strength by 1", async function () {
+        const { resolveActions } = await import("../imports/game/resolution.js");
+        const threat = makeThreat({ id: 't1', type: 'fog', threshold: 10, progress: 0 });
+        const game = makeGame({
+          players: [
+            { seatIndex: 0, resolve: 0, curses: [], role: 'navigator', alignment: 'loyal', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Alice' },
+          ],
+          activeThreats: [threat],
+        });
+        // Navigator specialty = 3, minus 1 (zero resolve) = 2
+        const result = resolveActions(game, [{ seatIndex: 0, threatId: 't1' }]);
+        assert.strictEqual(result.activeThreats[0].progress, 2);
+      });
+
+      it("revealed phantom action strength capped at 1", async function () {
+        const { resolveActions } = await import("../imports/game/resolution.js");
+        const threat = makeThreat({ id: 't1', type: 'fog', threshold: 10, progress: 0 });
+        const game = makeGame({
+          players: [
+            { seatIndex: 0, resolve: 3, curses: [], role: 'navigator', alignment: 'phantom', hasNextAction: true, hasAccused: false, phantomRevealed: true, displayName: 'Alice' },
+          ],
+          activeThreats: [threat],
+        });
+        // Navigator specialty = 3, but capped at 1 because phantomRevealed
+        const result = resolveActions(game, [{ seatIndex: 0, threatId: 't1' }]);
+        assert.strictEqual(result.activeThreats[0].progress, 1);
+      });
+
+      it("returns playerStrengths per seat", async function () {
+        const { resolveActions } = await import("../imports/game/resolution.js");
+        const threat = makeThreat({ id: 't1', type: 'fog', threshold: 10, progress: 0 });
+        const game = makeGame({ activeThreats: [threat] });
+        const result = resolveActions(game, [
+          { seatIndex: 0, threatId: 't1' },
+          { seatIndex: 1, threatId: 't1' },
+        ]);
+        assert.strictEqual(result.playerStrengths[0], 3); // navigator specialty
+        assert.strictEqual(result.playerStrengths[1], 1); // gunner off-spec for fog
+      });
     });
 
     describe("Resolution — resolveAccusation", function () {
-      it("majority guilty + target is phantom → correct and convicted", async function () {
+      it("majority guilty + target is phantom → correct, phantom revealed", async function () {
         const { resolveAccusation } = await import("../imports/game/resolution.js");
         const game = makeGame();
         const accusation = {
@@ -435,9 +481,15 @@ describe("false_colors", function () {
         const result = resolveAccusation(game, accusation);
         assert.strictEqual(result.correct, true);
         assert.strictEqual(result.convicted, true);
+        assert.strictEqual(result.doomChange, -3);
+        assert.ok(result.goldCoin);
+        assert.strictEqual(result.goldCoin.reason, 'phantom_unmasked');
+        // Phantom marked as revealed
+        const target = result.updatedPlayers.find(p => p.seatIndex === 3);
+        assert.strictEqual(target.phantomRevealed, true);
       });
 
-      it("majority guilty + target is loyal → wrong, accuser loses action", async function () {
+      it("majority guilty + target is loyal → wrong, accuser loses action + doom + skull", async function () {
         const { resolveAccusation } = await import("../imports/game/resolution.js");
         const game = makeGame();
         const accusation = {
@@ -448,6 +500,9 @@ describe("false_colors", function () {
         const result = resolveAccusation(game, accusation);
         assert.strictEqual(result.correct, false);
         assert.strictEqual(result.convicted, true);
+        assert.strictEqual(result.doomChange, 3);
+        assert.ok(result.skull);
+        assert.strictEqual(result.skull.reason, 'false_accusation');
         assert.ok(result.updatedPlayers, "should return updatedPlayers");
         const accuser = result.updatedPlayers.find(p => p.seatIndex === 0);
         assert.strictEqual(accuser.hasNextAction, false);
@@ -466,13 +521,13 @@ describe("false_colors", function () {
         assert.strictEqual(result.convicted, false);
       });
 
-      it("wrong accusation but target has phantom_whisper → accuser keeps action", async function () {
+      it("wrong accusation but target has phantom_whisper → no accuser penalty but still doom+skull", async function () {
         const { resolveAccusation } = await import("../imports/game/resolution.js");
         const phantomWhisper = { id: 'phantom_whisper', name: 'Phantom Whisper', effect: 'accusationPenalty', value: true, description: 'test' };
         const game = makeGame({
           players: [
-            { seatIndex: 0, supplies: 3, curses: [], role: 'navigator', alignment: 'loyal', hasNextAction: true, displayName: 'Alice' },
-            { seatIndex: 1, supplies: 3, curses: [phantomWhisper], role: 'gunner', alignment: 'loyal', hasNextAction: true, displayName: 'Bob' },
+            { seatIndex: 0, resolve: 3, curses: [], role: 'navigator', alignment: 'loyal', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Alice' },
+            { seatIndex: 1, resolve: 3, curses: [phantomWhisper], role: 'gunner', alignment: 'loyal', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Bob' },
           ],
         });
         const accusation = {
@@ -483,6 +538,8 @@ describe("false_colors", function () {
         const result = resolveAccusation(game, accusation);
         assert.strictEqual(result.correct, false);
         assert.strictEqual(result.convicted, true);
+        assert.strictEqual(result.doomChange, 3);
+        assert.ok(result.skull);
         assert.strictEqual(result.updatedPlayers, undefined);
       });
     });
@@ -505,8 +562,8 @@ describe("false_colors", function () {
           doomLevel: 15,
           doomThreshold: 15,
           players: [
-            { seatIndex: 0, supplies: 3, curses: [], role: 'navigator', alignment: 'loyal', hasNextAction: true, displayName: 'Alice' },
-            { seatIndex: 1, supplies: 3, curses: [], role: 'gunner', alignment: 'loyal', hasNextAction: true, displayName: 'Bob' },
+            { seatIndex: 0, resolve: 3, curses: [], role: 'navigator', alignment: 'loyal', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Alice' },
+            { seatIndex: 1, resolve: 3, curses: [], role: 'gunner', alignment: 'loyal', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Bob' },
           ],
         });
         const result = checkGameEnd(game);
@@ -514,24 +571,70 @@ describe("false_colors", function () {
         assert.strictEqual(result.result, GameResult.DOOM_LOSS);
       });
 
-      it("round >= maxRounds → LOYAL_WIN (survived_all_rounds)", async function () {
+      it("round >= maxRounds with coins > skulls → LOYAL_WIN", async function () {
         const { checkGameEnd } = await import("../imports/game/resolution.js");
         const { GameResult } = await import("../imports/lib/collections/games.js");
-        const game = makeGame({ currentRound: 10, maxRounds: 10, activeThreats: [makeThreat()] });
+        const game = makeGame({
+          currentRound: 10,
+          maxRounds: 10,
+          activeThreats: [makeThreat()],
+          goldCoins: [{ round: 1, reason: 'test', description: 'test' }, { round: 2, reason: 'test', description: 'test' }],
+          skulls: [{ round: 1, reason: 'test', description: 'test' }],
+        });
         const result = checkGameEnd(game);
         assert.strictEqual(result.ended, true);
         assert.strictEqual(result.result, GameResult.LOYAL_WIN);
         assert.strictEqual(result.reason, 'survived_all_rounds');
       });
 
-      it("no threats + empty deck → LOYAL_WIN (all_threats_cleared)", async function () {
+      it("round >= maxRounds with skulls >= coins → CREW_LOSS", async function () {
         const { checkGameEnd } = await import("../imports/game/resolution.js");
         const { GameResult } = await import("../imports/lib/collections/games.js");
-        const game = makeGame({ activeThreats: [], threatDeck: [], currentRound: 3, maxRounds: 10 });
+        const game = makeGame({
+          currentRound: 10,
+          maxRounds: 10,
+          activeThreats: [makeThreat()],
+          goldCoins: [{ round: 1, reason: 'test', description: 'test' }],
+          skulls: [{ round: 1, reason: 'test', description: 'test' }, { round: 2, reason: 'test', description: 'test' }],
+        });
+        const result = checkGameEnd(game);
+        assert.strictEqual(result.ended, true);
+        assert.strictEqual(result.result, GameResult.CREW_LOSS);
+        assert.strictEqual(result.reason, 'skulls_exceed_coins');
+      });
+
+      it("no threats + empty deck with coins > skulls → LOYAL_WIN (all_threats_cleared)", async function () {
+        const { checkGameEnd } = await import("../imports/game/resolution.js");
+        const { GameResult } = await import("../imports/lib/collections/games.js");
+        const game = makeGame({
+          activeThreats: [],
+          threatDeck: [],
+          currentRound: 3,
+          maxRounds: 10,
+          goldCoins: [{ round: 1, reason: 'test', description: 'test' }],
+          skulls: [],
+        });
         const result = checkGameEnd(game);
         assert.strictEqual(result.ended, true);
         assert.strictEqual(result.result, GameResult.LOYAL_WIN);
         assert.strictEqual(result.reason, 'all_threats_cleared');
+      });
+
+      it("no threats + empty deck with skulls >= coins → CREW_LOSS", async function () {
+        const { checkGameEnd } = await import("../imports/game/resolution.js");
+        const { GameResult } = await import("../imports/lib/collections/games.js");
+        const game = makeGame({
+          activeThreats: [],
+          threatDeck: [],
+          currentRound: 3,
+          maxRounds: 10,
+          goldCoins: [],
+          skulls: [{ round: 1, reason: 'test', description: 'test' }],
+        });
+        const result = checkGameEnd(game);
+        assert.strictEqual(result.ended, true);
+        assert.strictEqual(result.result, GameResult.CREW_LOSS);
+        assert.strictEqual(result.reason, 'skulls_exceed_coins');
       });
 
       it("game still in progress → ended:false", async function () {
@@ -631,77 +734,76 @@ describe("false_colors", function () {
     // ---- 6. Toll Strategy ----
 
     describe("Toll Strategy", function () {
-      it("loyal: high supplies + high doom → supply", async function () {
+      it("loyal: high resolve + high doom → resolve", async function () {
         const { chooseLoyalToll } = await import("../imports/game/ai/tollStrategy.js");
         const { Personalities } = await import("../imports/game/ai/personalities.js");
-        const player = { supplies: 3, curses: [] };
+        const player = { resolve: 3, curses: [] };
         const game = makeGame({ doomLevel: 10, doomThreshold: 15 });
         const result = chooseLoyalToll(player, game, Personalities.grizzled);
-        assert.strictEqual(result, 'supply');
+        assert.strictEqual(result, 'resolve');
       });
 
-      it("loyal: low doom + cautious personality → supply", async function () {
+      it("loyal: low doom + cautious personality → resolve", async function () {
         const { chooseLoyalToll } = await import("../imports/game/ai/tollStrategy.js");
         const { Personalities } = await import("../imports/game/ai/personalities.js");
-        // doom < 30% threshold (4.5), cautious (tollCaution > 0.6), supplies >= 2
-        const player = { supplies: 3, curses: [] };
+        // doom < 30% threshold (4.5), cautious (tollCaution > 0.6), resolve >= 2
+        const player = { resolve: 3, curses: [] };
         const game = makeGame({ doomLevel: 2, doomThreshold: 15 });
         const result = chooseLoyalToll(player, game, Personalities.grizzled); // tollCaution: 0.7
-        assert.strictEqual(result, 'supply');
+        assert.strictEqual(result, 'resolve');
       });
 
       it("loyal: low doom + non-cautious → doom", async function () {
         const { chooseLoyalToll } = await import("../imports/game/ai/tollStrategy.js");
         const { Personalities } = await import("../imports/game/ai/personalities.js");
-        // doom < 30% threshold, tollCaution <= 0.6, supplies < 2 so caution branch won't hit supply
-        const player = { supplies: 1, curses: [] };
+        // doom < 30% threshold, tollCaution <= 0.6, resolve < 2 so caution branch won't hit resolve
+        const player = { resolve: 1, curses: [] };
         const game = makeGame({ doomLevel: 2, doomThreshold: 15 });
         const result = chooseLoyalToll(player, game, Personalities.reckless); // tollCaution: 0.3
         assert.strictEqual(result, 'doom');
       });
 
-      it("loyal: mid-game, supplies >= 2 → supply", async function () {
+      it("loyal: mid-game, resolve >= 2 → resolve", async function () {
         const { chooseLoyalToll } = await import("../imports/game/ai/tollStrategy.js");
         const { Personalities } = await import("../imports/game/ai/personalities.js");
-        // doom between 30% and 50% threshold, supplies >= 2
-        const player = { supplies: 2, curses: [] };
+        // doom between 30% and 50% threshold, resolve >= 2
+        const player = { resolve: 2, curses: [] };
         const game = makeGame({ doomLevel: 6, doomThreshold: 15 });
         const result = chooseLoyalToll(player, game, Personalities.nervous);
-        assert.strictEqual(result, 'supply');
+        assert.strictEqual(result, 'resolve');
       });
 
-      it("loyal: low supplies, few curses, low caution → curse", async function () {
+      it("loyal: low resolve, few curses, low caution → curse", async function () {
         const { chooseLoyalToll } = await import("../imports/game/ai/tollStrategy.js");
         const { Personalities } = await import("../imports/game/ai/personalities.js");
-        // doom between 30%-50%, supplies < 2, personal supplies > 0 (so not in ship-store branch),
-        // curses < 2, tollCaution < 0.6
-        const player = { supplies: 1, curses: [] };
-        const game = makeGame({ doomLevel: 6, doomThreshold: 15, shipSupplies: 0 });
+        // doom between 30%-50%, resolve < 2, curses < 2, tollCaution < 0.5
+        const player = { resolve: 1, curses: [] };
+        const game = makeGame({ doomLevel: 6, doomThreshold: 15 });
         const result = chooseLoyalToll(player, game, Personalities.reckless); // tollCaution: 0.3
         assert.strictEqual(result, 'curse');
       });
 
-      it("loyal: no supplies, has curses → doom (last resort)", async function () {
+      it("loyal: no resolve, has curses → doom (last resort)", async function () {
         const { chooseLoyalToll } = await import("../imports/game/ai/tollStrategy.js");
         const { Personalities } = await import("../imports/game/ai/personalities.js");
         const curse1 = { id: 'c1', effect: 'noLookout', value: true };
         const curse2 = { id: 'c2', effect: 'supplyDrain', value: 1 };
-        const player = { supplies: 0, curses: [curse1, curse2] };
-        const game = makeGame({ doomLevel: 6, doomThreshold: 15, shipSupplies: 0 });
+        const player = { resolve: 0, curses: [curse1, curse2] };
+        const game = makeGame({ doomLevel: 6, doomThreshold: 15 });
         const result = chooseLoyalToll(player, game, Personalities.reckless);
         assert.strictEqual(result, 'doom');
       });
 
-      it("phantom early game: cooperates (supply with enough supplies)", async function () {
+      it("phantom early game: cooperates (resolve with enough resolve)", async function () {
         const { choosePhantomToll } = await import("../imports/game/ai/tollStrategy.js");
         const { Personalities } = await import("../imports/game/ai/personalities.js");
         const origRandom = Math.random;
         Math.random = () => 0.5; // > 0.1 so skip curse branch
         try {
-          const player = { supplies: 3, curses: [] };
+          const player = { resolve: 3, curses: [], phantomRevealed: false };
           const game = makeGame({ maxRounds: 10 });
-          const result = choosePhantomToll(player, game, Personalities.grizzled, 2); // round 2, progress 0.2 < 0.3
-          assert.strictEqual(result, 'supply');
+          const result = choosePhantomToll(player, game, Personalities.grizzled, 2); // round 2, progress 0.2 < earlyThreshold
+          assert.strictEqual(result, 'resolve');
         } finally {
           Math.random = origRandom;
         }
@@ -711,15 +813,24 @@ describe("false_colors", function () {
         const { choosePhantomToll } = await import("../imports/game/ai/tollStrategy.js");
         const { Personalities } = await import("../imports/game/ai/personalities.js");
         const origRandom = Math.random;
-        Math.random = () => 0.5; // > 0.08 so skip curse, > 0.4 so skip ship-store drain
+        Math.random = () => 0.5; // > lateCurseChance so skip curse
         try {
-          const player = { supplies: 3, curses: [] };
+          const player = { resolve: 3, curses: [], phantomRevealed: false };
           const game = makeGame({ maxRounds: 10 });
-          const result = choosePhantomToll(player, game, Personalities.grizzled, 8); // round 8, progress 0.8 >= 0.6
+          const result = choosePhantomToll(player, game, Personalities.grizzled, 8); // round 8, progress 0.8 >= midThreshold
           assert.strictEqual(result, 'doom');
         } finally {
           Math.random = origRandom;
         }
+      });
+
+      it("revealed phantom always returns doom", async function () {
+        const { choosePhantomToll } = await import("../imports/game/ai/tollStrategy.js");
+        const { Personalities } = await import("../imports/game/ai/personalities.js");
+        const player = { resolve: 3, curses: [], phantomRevealed: true };
+        const game = makeGame({ maxRounds: 10 });
+        const result = choosePhantomToll(player, game, Personalities.grizzled, 2);
+        assert.strictEqual(result, 'doom');
       });
     });
 
@@ -736,9 +847,9 @@ describe("false_colors", function () {
         const player = { role: 'navigator', curses: [] };
         const game = makeGame({ activeThreats: threats });
         // analytical has actionOptimality 0.95 > 0.85, so always picks best
-        const result = chooseLoyalAction(player, game, Personalities.analytical);
         // Navigator specialty is fog. t2: urgency = 2*(4-0)=8, strength=3, score=24
         // t1: urgency = 1*(4-0)=4, strength=1, score=4
+        const result = chooseLoyalAction(player, game, Personalities.analytical);
         assert.strictEqual(result, 't2');
       });
 
@@ -770,13 +881,13 @@ describe("false_colors", function () {
         const { choosePhantomAction } = await import("../imports/game/ai/actionStrategy.js");
         const { Personalities } = await import("../imports/game/ai/personalities.js");
         const origRandom = Math.random;
-        Math.random = () => 0.2; // < 0.4 so cooperate in early game
+        Math.random = () => 0.2; // < cooperateChance so cooperate in early game
         try {
           const threats = [
             makeThreat({ id: 't1', type: 'fog', threshold: 4, doomPerRound: 2, progress: 0 }),
             makeThreat({ id: 't2', type: 'kraken', threshold: 4, doomPerRound: 1, progress: 0 }),
           ];
-          const player = { role: 'navigator', curses: [] };
+          const player = { role: 'navigator', curses: [], phantomRevealed: false };
           const game = makeGame({ activeThreats: threats, maxRounds: 10 });
           const result = choosePhantomAction(player, game, Personalities.grizzled, 2); // progress 0.2 < 0.3
           assert.strictEqual(result, 't1'); // best threat
@@ -789,13 +900,13 @@ describe("false_colors", function () {
         const { choosePhantomAction } = await import("../imports/game/ai/actionStrategy.js");
         const { Personalities } = await import("../imports/game/ai/personalities.js");
         const origRandom = Math.random;
-        Math.random = () => 0.7; // > 0.4 so no early cooperate, > 0.5 so skip 3rd pick, fall to 2nd
+        Math.random = () => 0.7; // > cooperateChance, > thirdChance, falls to 2nd pick
         try {
           const threats = [
             makeThreat({ id: 't1', type: 'fog', threshold: 6, doomPerRound: 2, progress: 0 }),
             makeThreat({ id: 't2', type: 'fog', threshold: 4, doomPerRound: 1, progress: 0 }),
           ];
-          const player = { role: 'navigator', curses: [] };
+          const player = { role: 'navigator', curses: [], phantomRevealed: false };
           const game = makeGame({ activeThreats: threats, maxRounds: 10 });
           const result = choosePhantomAction(player, game, Personalities.grizzled, 5); // progress 0.5 >= 0.3
           assert.strictEqual(result, 't2'); // 2nd priority
@@ -828,6 +939,37 @@ describe("false_colors", function () {
         const result = chooseLoyalAction(player, game, Personalities.analytical);
         assert.strictEqual(result, 't2');
       });
+
+      it("revealed phantom: picks lowest-priority threat", async function () {
+        const { choosePhantomAction } = await import("../imports/game/ai/actionStrategy.js");
+        const { Personalities } = await import("../imports/game/ai/personalities.js");
+        const threats = [
+          makeThreat({ id: 't1', type: 'fog', threshold: 4, doomPerRound: 2, progress: 0 }),
+          makeThreat({ id: 't2', type: 'kraken', threshold: 4, doomPerRound: 1, progress: 0 }),
+        ];
+        const player = { role: 'navigator', curses: [], phantomRevealed: true };
+        const game = makeGame({ activeThreats: threats, maxRounds: 10 });
+        // Navigator: fog=specialty(3), kraken=off(1)
+        // t1 score: 2*4*3=24, t2 score: 1*4*1=4
+        // Revealed phantom picks lowest → t2
+        const result = choosePhantomAction(player, game, Personalities.grizzled, 5);
+        assert.strictEqual(result, 't2');
+      });
+
+      it("escalated threat gets priority bonus", async function () {
+        const { chooseLoyalAction } = await import("../imports/game/ai/actionStrategy.js");
+        const { Personalities } = await import("../imports/game/ai/personalities.js");
+        const threats = [
+          makeThreat({ id: 't1', type: 'fog', threshold: 6, doomPerRound: 1, progress: 0, escalated: false }),
+          makeThreat({ id: 't2', type: 'fog', threshold: 6, doomPerRound: 1, progress: 0, escalated: true }),
+        ];
+        const player = { role: 'navigator', curses: [] };
+        const game = makeGame({ activeThreats: threats });
+        // t1: urgency=6, no bonus, score=6*3=18
+        // t2: urgency=6, escalation bonus=1*2=2, score=(6+2)*3=24
+        const result = chooseLoyalAction(player, game, Personalities.analytical);
+        assert.strictEqual(result, 't2');
+      });
     });
 
     // ---- 8. Dialogue Templates ----
@@ -835,7 +977,11 @@ describe("false_colors", function () {
     describe("Dialogue Templates — Phantom Tides", function () {
       it("getTemplate returns a string for each valid trigger/style combo", async function () {
         const { getTemplate } = await import("../imports/ai/templates/phantomTides.js");
-        const triggers = ['greeting', 'threatAssessment', 'tollReaction', 'accusation', 'defense', 'commentary'];
+        const triggers = [
+          'greeting', 'threatAssessment', 'tollReaction', 'accusation', 'defense', 'commentary',
+          'tollObservation', 'actionObservation', 'cookObservation', 'phantomRevealedReaction', 'scoreObservation',
+          'doomWarning',
+        ];
         const styles = ['terse', 'worried', 'cheerful', 'analytical', 'bold', 'solemn'];
         for (const trigger of triggers) {
           for (const style of styles) {
@@ -918,19 +1064,24 @@ describe("false_colors", function () {
         const game = {
           _id: 'integration-test',
           players: [
-            { seatIndex: 0, supplies: 3, curses: [], role: 'navigator', alignment: 'loyal', hasNextAction: true, displayName: 'Alice' },
-            { seatIndex: 1, supplies: 3, curses: [], role: 'gunner', alignment: 'loyal', hasNextAction: true, displayName: 'Bob' },
-            { seatIndex: 2, supplies: 3, curses: [], role: 'surgeon', alignment: 'loyal', hasNextAction: true, displayName: 'Carol' },
-            { seatIndex: 3, supplies: 3, curses: [], role: 'quartermaster', alignment: 'phantom', hasNextAction: true, displayName: 'Dave' },
+            { seatIndex: 0, resolve: 3, curses: [], role: 'navigator', alignment: 'loyal', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Alice' },
+            { seatIndex: 1, resolve: 3, curses: [], role: 'gunner', alignment: 'loyal', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Bob' },
+            { seatIndex: 2, resolve: 3, curses: [], role: 'surgeon', alignment: 'loyal', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Carol' },
+            { seatIndex: 3, resolve: 3, curses: [], role: 'quartermaster', alignment: 'phantom', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Dave' },
           ],
           doomLevel: 0,
           doomThreshold: 15,
-          shipSupplies: 10,
           activeThreats: [],
           threatDeck: createThreatDeck(),
           currentRound: 1,
           maxRounds: 10,
           currentPhase: GamePhase.THREAT,
+          goldCoins: [],
+          skulls: [],
+          threatsDefeated: 0,
+          readyPlayers: [],
+          tollAggregate: null,
+          expertMode: false,
         };
 
         // --- THREAT PHASE ---
@@ -943,17 +1094,19 @@ describe("false_colors", function () {
         // --- TOLL PHASE ---
         game.currentPhase = GamePhase.TOLL;
         const tollSubmissions = [
-          { seatIndex: 0, choice: 'supply' },
+          { seatIndex: 0, choice: 'resolve' },
           { seatIndex: 1, choice: 'doom' },
-          { seatIndex: 2, choice: 'supply' },
+          { seatIndex: 2, choice: 'resolve' },
           { seatIndex: 3, choice: 'doom' },
         ];
         const tollResult = resolveTolls(game, tollSubmissions);
-        assert.strictEqual(tollResult.players[0].supplies, 2, "Alice loses 1 supply");
+        assert.strictEqual(tollResult.players[0].resolve, 2, "Alice loses 1 resolve");
         assert.strictEqual(tollResult.doomLevel, 2, "2 doom tolls add 2 doom");
+        assert.strictEqual(tollResult.tollAggregate.resolveCount, 2);
+        assert.strictEqual(tollResult.tollAggregate.doomCount, 2);
         game.players = tollResult.players;
         game.doomLevel = tollResult.doomLevel;
-        game.shipSupplies = tollResult.shipSupplies;
+        game.tollAggregate = tollResult.tollAggregate;
 
         // --- DISCUSSION PHASE --- (no resolution logic, just phase transition)
         game.currentPhase = GamePhase.DISCUSSION;
@@ -971,6 +1124,7 @@ describe("false_colors", function () {
         const actionResult = resolveActions(game, actionSubmissions);
         // Verify progress was applied (total strength depends on threat type vs roles)
         assert.ok(actionResult.activeThreats !== undefined, "resolveActions returns activeThreats");
+        assert.ok(actionResult.playerStrengths !== undefined, "resolveActions returns playerStrengths");
         game.activeThreats = actionResult.activeThreats;
 
         // --- ACCUSATION PHASE --- (no accusation made, advances automatically)
@@ -995,22 +1149,49 @@ describe("false_colors", function () {
         assert.strictEqual(doomEnd.result, GameResult.PHANTOM_WIN);
         assert.strictEqual(doomEnd.reason, 'doom_threshold');
 
-        // --- Verify game end: survived all rounds ---
-        const survivedGame = { ...game, currentRound: 10, maxRounds: 10, doomLevel: 5 };
+        // --- Verify game end: survived all rounds with coins > skulls ---
+        const survivedGame = {
+          ...game,
+          currentRound: 10,
+          maxRounds: 10,
+          doomLevel: 5,
+          goldCoins: [{ round: 1, reason: 'test', description: 'test' }, { round: 2, reason: 'test', description: 'test' }],
+          skulls: [{ round: 1, reason: 'test', description: 'test' }],
+        };
         const survivedEnd = checkGameEnd(survivedGame);
         assert.strictEqual(survivedEnd.ended, true);
         assert.strictEqual(survivedEnd.result, GameResult.LOYAL_WIN);
         assert.strictEqual(survivedEnd.reason, 'survived_all_rounds');
 
-        // --- Verify game end: all threats cleared ---
-        const clearedGame = { ...game, activeThreats: [], threatDeck: [], currentRound: 3 };
+        // --- Verify game end: survived all rounds but skulls >= coins → CREW_LOSS ---
+        const crewLossGame = {
+          ...game,
+          currentRound: 10,
+          maxRounds: 10,
+          doomLevel: 5,
+          goldCoins: [],
+          skulls: [{ round: 1, reason: 'test', description: 'test' }],
+        };
+        const crewLossEnd = checkGameEnd(crewLossGame);
+        assert.strictEqual(crewLossEnd.ended, true);
+        assert.strictEqual(crewLossEnd.result, GameResult.CREW_LOSS);
+
+        // --- Verify game end: all threats cleared with coins > skulls ---
+        const clearedGame = {
+          ...game,
+          activeThreats: [],
+          threatDeck: [],
+          currentRound: 3,
+          goldCoins: [{ round: 1, reason: 'test', description: 'test' }],
+          skulls: [],
+        };
         const clearedEnd = checkGameEnd(clearedGame);
         assert.strictEqual(clearedEnd.ended, true);
         assert.strictEqual(clearedEnd.result, GameResult.LOYAL_WIN);
         assert.strictEqual(clearedEnd.reason, 'all_threats_cleared');
       });
 
-      it("accusation correctly identifies and convicts phantom mid-game", async function () {
+      it("accusation correctly identifies phantom — game continues", async function () {
         const { resolveAccusation } = await import("../imports/game/resolution.js");
 
         const game = makeGame();
@@ -1025,6 +1206,11 @@ describe("false_colors", function () {
         const result = resolveAccusation(game, accusation);
         assert.strictEqual(result.correct, true, "phantom should be correctly identified");
         assert.strictEqual(result.convicted, true);
+        assert.strictEqual(result.doomChange, -3, "correct accusation reduces doom by 3");
+        assert.ok(result.goldCoin, "correct accusation earns a gold coin");
+        // Phantom revealed, game continues
+        const target = result.updatedPlayers.find(p => p.seatIndex === 3);
+        assert.strictEqual(target.phantomRevealed, true);
       });
 
       it("wrong accusation penalizes accuser then game continues", async function () {
@@ -1046,6 +1232,8 @@ describe("false_colors", function () {
         const accuseResult = resolveAccusation(game, accusation);
         assert.strictEqual(accuseResult.correct, false);
         assert.strictEqual(accuseResult.convicted, true);
+        assert.strictEqual(accuseResult.doomChange, 3, "wrong accusation adds 3 doom");
+        assert.ok(accuseResult.skull, "wrong accusation earns a skull");
 
         // Accuser loses next action
         const penalizedPlayers = accuseResult.updatedPlayers;
@@ -1169,7 +1357,7 @@ describe("false_colors", function () {
     // ---- 13. Phase Timer ----
 
     describe("Phase Timer", function () {
-      it("PhaseDurations has all 6 phases with positive numbers", async function () {
+      it("PhaseDurations (novice) has all 6 phases with positive numbers", async function () {
         const { PhaseDurations } = await import("../imports/game/phaseTimer.js");
         const phases = ['threat', 'toll', 'discussion', 'action', 'accusation', 'round_end'];
         for (const phase of phases) {
@@ -1178,14 +1366,36 @@ describe("false_colors", function () {
         }
       });
 
-      it("duration values match spec (2s/30s/30s/30s/15s/2s)", async function () {
-        const { PhaseDurations } = await import("../imports/game/phaseTimer.js");
-        assert.strictEqual(PhaseDurations.threat, 2000);
-        assert.strictEqual(PhaseDurations.toll, 30000);
-        assert.strictEqual(PhaseDurations.discussion, 30000);
-        assert.strictEqual(PhaseDurations.action, 30000);
-        assert.strictEqual(PhaseDurations.accusation, 15000);
-        assert.strictEqual(PhaseDurations.round_end, 2000);
+      it("novice duration values match spec (3s/45s/60s/45s/30s/15s)", async function () {
+        const { PhaseDurationsNovice } = await import("../imports/game/phaseTimer.js");
+        assert.strictEqual(PhaseDurationsNovice.threat, 3000);
+        assert.strictEqual(PhaseDurationsNovice.toll, 45000);
+        assert.strictEqual(PhaseDurationsNovice.discussion, 60000);
+        assert.strictEqual(PhaseDurationsNovice.action, 45000);
+        assert.strictEqual(PhaseDurationsNovice.accusation, 30000);
+        assert.strictEqual(PhaseDurationsNovice.round_end, 15000);
+      });
+
+      it("expert duration values match spec (2s/30s/45s/30s/20s/10s)", async function () {
+        const { PhaseDurationsExpert } = await import("../imports/game/phaseTimer.js");
+        assert.strictEqual(PhaseDurationsExpert.threat, 2000);
+        assert.strictEqual(PhaseDurationsExpert.toll, 30000);
+        assert.strictEqual(PhaseDurationsExpert.discussion, 45000);
+        assert.strictEqual(PhaseDurationsExpert.action, 30000);
+        assert.strictEqual(PhaseDurationsExpert.accusation, 20000);
+        assert.strictEqual(PhaseDurationsExpert.round_end, 10000);
+      });
+
+      it("getPhaseDuration returns novice by default", async function () {
+        const { getPhaseDuration, PhaseDurationsNovice } = await import("../imports/game/phaseTimer.js");
+        assert.strictEqual(getPhaseDuration('toll', false), PhaseDurationsNovice.toll);
+        assert.strictEqual(getPhaseDuration('toll', undefined), PhaseDurationsNovice.toll);
+      });
+
+      it("getPhaseDuration returns expert when expertMode is true", async function () {
+        const { getPhaseDuration, PhaseDurationsExpert } = await import("../imports/game/phaseTimer.js");
+        assert.strictEqual(getPhaseDuration('toll', true), PhaseDurationsExpert.toll);
+        assert.strictEqual(getPhaseDuration('action', true), PhaseDurationsExpert.action);
       });
 
       it("unknown phase → no callback, no throw", async function () {
@@ -1209,12 +1419,12 @@ describe("false_colors", function () {
         const { startPhaseTimer, clearPhaseTimer } = await import("../imports/game/phaseTimer.js");
         let firstCalled = false;
         let secondCalled = false;
-        // First timer: threat phase (2s)
+        // First timer: threat phase (novice = 3s)
         startPhaseTimer('timer-test-2', 'threat', () => { firstCalled = true; });
         // Immediately replace with another threat timer
         startPhaseTimer('timer-test-2', 'threat', () => { secondCalled = true; });
-        // Wait 2.5s — only the second timer should fire
-        await new Promise(resolve => setTimeout(resolve, 2500));
+        // Wait 3.5s — only the second timer should fire
+        await new Promise(resolve => setTimeout(resolve, 3500));
         assert.strictEqual(firstCalled, false, "first timer should have been cancelled");
         assert.strictEqual(secondCalled, true, "second timer should have fired");
         clearPhaseTimer('timer-test-2');
@@ -1226,7 +1436,7 @@ describe("false_colors", function () {
     describe("Game Methods — integration", function () {
       it("game.submitToll rejects unauthenticated user", async function () {
         try {
-          await Meteor.callAsync("game.submitToll", "fake-game-id", "supply");
+          await Meteor.callAsync("game.submitToll", "fake-game-id", "resolve");
           assert.fail("Should have thrown an error");
         } catch (error) {
           assert.strictEqual(error.error, "not-authorized");
@@ -1245,6 +1455,24 @@ describe("false_colors", function () {
       it("game.sendMessage rejects unauthenticated user", async function () {
         try {
           await Meteor.callAsync("game.sendMessage", "fake-game-id", "hello");
+          assert.fail("Should have thrown an error");
+        } catch (error) {
+          assert.strictEqual(error.error, "not-authorized");
+        }
+      });
+
+      it("game.readyToAdvance rejects unauthenticated user", async function () {
+        try {
+          await Meteor.callAsync("game.readyToAdvance", "fake-game-id");
+          assert.fail("Should have thrown an error");
+        } catch (error) {
+          assert.strictEqual(error.error, "not-authorized");
+        }
+      });
+
+      it("game.cookNourish rejects unauthenticated user", async function () {
+        try {
+          await Meteor.callAsync("game.cookNourish", "fake-game-id", 0);
           assert.fail("Should have thrown an error");
         } catch (error) {
           assert.strictEqual(error.error, "not-authorized");

@@ -79,12 +79,58 @@ function pickRelevantPlayer(game, aiPlayer) {
   return others[Math.floor(Math.random() * others.length)].displayName;
 }
 
-function buildSlotData(game, aiPlayer) {
+// Find a player who made a suboptimal action choice worth commenting on
+function findInterestingAction(game) {
+  const actions = game.revealedActions;
+  if (!actions || actions.length === 0) {
+    return null;
+  }
+
+  for (const action of actions) {
+    const player = game.players.find(p => p.seatIndex === action.seatIndex);
+    if (!player) {
+      continue;
+    }
+    const role = Object.values(Roles).find(r => r.id === player.role);
+    if (!role) {
+      continue;
+    }
+    const targetedThreat = game.activeThreats.find(t => t.id === action.threatId);
+    if (!targetedThreat) {
+      continue;
+    }
+    const targetedStrength = getActionStrength(role, targetedThreat.type);
+    const bestStrength = Math.max(...game.activeThreats.map(t => getActionStrength(role, t.type)));
+
+    if (targetedStrength < bestStrength) {
+      // Find their specialty type
+      const specialtyThreats = game.activeThreats.filter(t => getActionStrength(role, t.type) === bestStrength);
+      return {
+        playerName: player.displayName,
+        targetedThreatName: targetedThreat.name,
+        specialtyType: specialtyThreats[0]?.type || 'their specialty',
+      };
+    }
+  }
+  return null;
+}
+
+export function buildSlotData(game, aiPlayer) {
   const highestThreat = game.activeThreats.reduce((prev, curr) =>
     (curr.doomPerRound > (prev?.doomPerRound || 0)) ? curr : prev
   , null);
 
   const roundsLeft = Math.max(0, game.maxRounds - game.currentRound);
+  const tollAgg = game.tollAggregate || {};
+  const coins = (game.goldCoins || []).length;
+  const skulls = (game.skulls || []).length;
+
+  // Cook nourish data
+  const cook = game.players.find(p => p.role === 'cook');
+  const cookName = cook ? cook.displayName : 'the Cook';
+
+  // Find interesting action observation
+  const interestingAction = findInterestingAction(game);
 
   return {
     threat_name: highestThreat?.name || 'the unknown threat',
@@ -96,5 +142,18 @@ function buildSlotData(game, aiPlayer) {
     doom_threshold: game.doomThreshold.toString(),
     doom_remaining: Math.max(0, game.doomThreshold - game.doomLevel).toString(),
     doom_percent: Math.round((game.doomLevel / game.doomThreshold) * 100).toString(),
+    // Toll aggregate
+    resolve_tolls: (tollAgg.resolveCount || 0).toString(),
+    doom_tolls: (tollAgg.doomCount || 0).toString(),
+    curse_tolls: (tollAgg.curseCount || 0).toString(),
+    // Scoring
+    coins: coins.toString(),
+    skulls: skulls.toString(),
+    // Cook
+    cook_name: cookName,
+    // Action observation
+    action_player: interestingAction?.playerName || 'someone',
+    action_threat: interestingAction?.targetedThreatName || 'a threat',
+    action_specialty: interestingAction?.specialtyType || 'their specialty',
   };
 }

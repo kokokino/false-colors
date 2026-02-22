@@ -1,6 +1,6 @@
 import m from 'mithril';
 
-// Display active threats with progress bars
+// Display active threats with progress bars, escalation indicators, and specialist hints
 // Attrs: threats (array)
 export const ThreatDisplay = {
   view(vnode) {
@@ -13,16 +13,24 @@ export const ThreatDisplay = {
     return m('div.threat-display', [
       m('h3', 'Active Threats'),
       m('div.threat-cards', threats.map(threat =>
-        m('article.threat-card', { key: threat.id }, [
+        m('article.threat-card', {
+          key: threat.id,
+          class: threat.escalated ? 'escalated' : '',
+        }, [
           m('header', [
             m('strong', threat.name),
             m('small.threat-type', threat.type),
+            threat.escalated ? m('mark', 'Escalated') : null,
           ]),
           m('p.threat-desc', threat.description),
           m('div.threat-stats', [
             m('span', `Doom/round: +${threat.doomPerRound}`),
             m('span', `Progress: ${threat.progress} / ${threat.threshold}`),
+            m('span', `Remaining: ${Math.max(0, threat.threshold - threat.progress)}`),
           ]),
+          threat.escalated
+            ? m('small.warning', 'This threat has grown worse from neglect!')
+            : null,
           m('progress', {
             value: threat.progress,
             max: threat.threshold,

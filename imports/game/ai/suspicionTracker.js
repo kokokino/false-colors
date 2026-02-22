@@ -25,7 +25,6 @@ export function initSuspicion(gameId, aiSeatIndex, allSeats) {
 }
 
 // Update suspicion based on an observed action
-// eventType: 'toll_doom', 'toll_supply', 'toll_curse', 'action_optimal', 'action_suboptimal', 'accused_loyal'
 export function updateSuspicion(gameId, aiSeatIndex, targetSeat, eventType) {
   const state = getState(gameId);
   if (!state[aiSeatIndex] || state[aiSeatIndex][targetSeat] === undefined) {
@@ -38,9 +37,12 @@ export function updateSuspicion(gameId, aiSeatIndex, targetSeat, eventType) {
     toll_curse: 0.0,        // Neutral
     action_optimal: -0.1,   // Good targeting reduces suspicion
     action_suboptimal: 0.15, // Bad targeting raises suspicion
+    action_ignored_escalated: 0.2, // Ignoring escalated threat as specialist
     accused_loyal: 0.2,     // Accusing a loyal player is very suspicious
     defended_self_well: -0.1,
-    voted_guilty_on_acquitted: 0.1, // Voting guilty on someone who was acquitted is mildly suspicious
+    voted_guilty_on_acquitted: 0.1,
+    cook_nourish_wasteful: 0.15,   // Nourishing high-resolve player when someone is at 0
+    cook_nourish_skipped: 0.2,     // Skipping a meal when someone is desperate
   };
 
   const delta = deltas[eventType] || 0;

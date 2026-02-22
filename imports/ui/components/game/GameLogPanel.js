@@ -16,6 +16,8 @@ const eventLabels = {
   accusation_resolved: 'Accusation resolved',
   round_started: 'New round',
   game_ended: 'Game over',
+  cook_nourish: 'Cook nourished a crew member',
+  player_replaced_by_ai: 'Player replaced by AI',
 };
 
 // Scrollable game event log

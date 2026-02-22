@@ -13,7 +13,10 @@ export const ThreatReveal = {
             m('article.threat-card.new-threat', { key: t.id }, [
               m('header', m('strong', t.name)),
               m('p', t.description),
-              m('small', `Type: ${t.type} | Doom/round: +${t.doomPerRound} | Strength needed: ${t.threshold}`),
+              m('div.threat-details', [
+                m('small', `Type: ${t.type} | Doom/round: +${t.doomPerRound} | Strength needed: ${t.threshold}`),
+              ]),
+              t.escalated ? m('small.warning', 'This threat has escalated!') : null,
             ])
           ))
         : m('p', 'No new threats this round.'),

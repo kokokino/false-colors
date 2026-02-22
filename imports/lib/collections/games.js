@@ -31,6 +31,7 @@ export const GameResult = {
   LOYAL_WIN: 'loyal_win',
   PHANTOM_WIN: 'phantom_win',
   DOOM_LOSS: 'doom_loss',
+  CREW_LOSS: 'crew_loss', // Survived but skulls >= coins
 };
 
 export const MIN_PLAYERS = 4;

@@ -1,6 +1,6 @@
 import m from 'mithril';
 
-// Simultaneous action reveal display
+// Simultaneous action reveal display — now includes strength per player
 // Attrs: revealedActions (array), threats (array)
 export const ActionReveal = {
   view(vnode) {
@@ -27,10 +27,14 @@ export const ActionReveal = {
       m('h3', 'Actions Revealed'),
       Object.entries(byThreat).map(([threatId, threatActions]) => {
         const threat = threats.find(t => t.id === threatId);
+        const totalStrength = threatActions.reduce((sum, a) => sum + (a.strength || 0), 0);
         return m('div.reveal-group', { key: threatId }, [
-          m('h4', threat ? threat.name : 'Unknown Threat'),
+          m('h4', [
+            threat ? threat.name : 'Unknown Threat',
+            m('small', ` (+${totalStrength} total strength)`),
+          ]),
           m('ul', threatActions.map(a =>
-            m('li', { key: a.seatIndex }, `${a.displayName} (${a.role})`)
+            m('li', { key: a.seatIndex }, `${a.displayName} (${a.role}) — +${a.strength || 0} strength`)
           )),
         ]);
       }),

@@ -7,6 +7,7 @@ import './methods.js';
 import './indexes.js';
 import './rateLimiting.js';
 import './migrations/0_steps.js';
+import './migrations/3_add_game_fields.js';
 
 // Game modules
 import './roomMethods.js';

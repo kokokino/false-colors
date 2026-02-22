@@ -51,8 +51,8 @@ export const Roles = {
     specialty: [],
     specialtyStrength: 1,
     offStrength: 1,
-    passive: 'heals 1 supply to all players',
-    description: 'Weak fighter but heals 1 supply to all crew each round.',
+    passive: 'nourish: restore 1 resolve to a crew member (5 meals per game)',
+    description: 'Weak fighter but can nourish crew to restore resolve.',
   },
 };
 

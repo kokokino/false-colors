@@ -9,6 +9,7 @@ export const DiscussionChat = {
     this.newMessage = '';
     this.sending = false;
     this.error = null;
+    this.readySubmitted = false;
   },
 
   oncreate() {
@@ -29,9 +30,15 @@ export const DiscussionChat = {
   view(vnode) {
     const { game, myPlayer, messages } = vnode.attrs;
     const roundMessages = (messages || []).filter(msg => msg.round === game.currentRound);
+    const tollAgg = game.tollAggregate;
 
     return m('div.phase-content.discussion-chat', [
       m('h3', 'Discussion'),
+
+      // Show toll aggregate at top
+      tollAgg ? m('div.toll-summary', [
+        m('small', `This round's tolls: ${tollAgg.resolveCount} sacrificed resolve, ${tollAgg.doomCount} chose doom, ${tollAgg.curseCount} drew a curse.`),
+      ]) : null,
 
       m('div.discussion-messages', roundMessages.map(msg =>
         m('div.disc-message', {
@@ -62,6 +69,11 @@ export const DiscussionChat = {
           m('button[type=submit]', { disabled: this.sending || !this.newMessage.trim() }, 'Send'),
         ]),
       ]),
+
+      // Ready to move on button
+      !this.readySubmitted ? m('button.outline', {
+        onclick: () => this.markReady(game._id),
+      }, 'Ready to move on') : m('p.muted', 'Waiting for other crew members...'),
     ]);
   },
 
@@ -79,6 +91,16 @@ export const DiscussionChat = {
       this.error = error.reason || error.message;
     }
     this.sending = false;
+    m.redraw();
+  },
+
+  async markReady(gameId) {
+    try {
+      await Meteor.callAsync('game.readyToAdvance', gameId);
+      this.readySubmitted = true;
+    } catch (error) {
+      this.error = error.reason || error.message;
+    }
     m.redraw();
   },
 };

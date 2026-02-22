@@ -1,13 +1,14 @@
 import m from 'mithril';
 import { Meteor } from 'meteor/meteor';
 
-// Accusation and voting panel
+// Accusation and voting panel — one accusation per player per game
 // Attrs: game, myPlayer
 export const AccusationPanel = {
   oninit() {
     this.error = null;
     this.voted = false;
     this.accused = false;
+    this.readySubmitted = false;
   },
 
   view(vnode) {
@@ -29,18 +30,39 @@ export const AccusationPanel = {
   },
 
   renderAccuseOption(game, myPlayer) {
-    if (this.accused || !myPlayer.hasNextAction) {
+    const canAccuse = !this.accused &&
+      !myPlayer.hasAccused &&
+      myPlayer.hasNextAction &&
+      !myPlayer.phantomRevealed &&
+      game.currentRound >= 3;
+
+    if (!canAccuse) {
+      const reason = game.currentRound < 3
+        ? `Accusations begin in round 3 (current: round ${game.currentRound}).`
+        : myPlayer.hasAccused
+          ? 'You have already used your accusation this game.'
+          : myPlayer.phantomRevealed
+            ? 'Revealed phantoms cannot accuse.'
+            : 'Waiting for accusations or timer to expire...';
+
       return m('div.phase-content.accusation-panel', [
         m('h3', 'Accusations'),
-        m('p', 'Waiting for accusations or timer to expire...'),
+        m('p', reason),
+        !this.readySubmitted
+          ? m('button.outline', { onclick: () => this.markReady(game._id) }, 'Ready to move on')
+          : m('p.muted', 'Waiting for other crew members...'),
       ]);
     }
 
-    const otherPlayers = game.players.filter(p => p.seatIndex !== myPlayer.seatIndex);
+    const otherPlayers = game.players.filter(p => p.seatIndex !== myPlayer.seatIndex && !p.phantomRevealed);
 
     return m('div.phase-content.accusation-panel', [
       m('h3', 'Accusations'),
-      m('p', 'Do you suspect someone is the phantom? Accuse them — but a wrong accusation costs your next action.'),
+      m('p', [
+        'You get ',
+        m('strong', 'ONE accusation'),
+        ' for the entire game. Wrong = +3 doom and a skull.',
+      ]),
 
       this.error ? m('p.error-message', this.error) : null,
 
@@ -52,6 +74,10 @@ export const AccusationPanel = {
       )),
 
       m('p.muted', 'Or do nothing — the phase will end automatically.'),
+
+      !this.readySubmitted
+        ? m('button.outline', { onclick: () => this.markReady(game._id) }, 'Ready to move on')
+        : null,
     ]);
   },
 
@@ -70,6 +96,7 @@ export const AccusationPanel = {
         m('strong', target?.displayName || 'someone'),
         ' of being the phantom!',
       ]),
+      m('p.warning', 'Wrong accusation: +3 doom, +1 skull, accuser loses next action.'),
 
       this.error ? m('p.error-message', this.error) : null,
 
@@ -87,8 +114,8 @@ export const AccusationPanel = {
     return m('div.phase-content.accusation-panel', [
       m('h3', 'Accusation Result'),
       m('p', accusation.correct
-        ? `${target?.displayName || 'The accused'} was indeed the phantom! The crew is saved!`
-        : `${target?.displayName || 'The accused'} was loyal. The accuser loses their next action.`
+        ? `${target?.displayName || 'The accused'} was indeed the phantom! They are revealed but remain aboard. Doom reduced by 3.`
+        : `${target?.displayName || 'The accused'} was loyal. +3 doom added. The accuser loses their next action.`
       ),
     ]);
   },
@@ -109,6 +136,16 @@ export const AccusationPanel = {
     try {
       await Meteor.callAsync('game.voteAccusation', gameId, guilty);
       this.voted = true;
+    } catch (error) {
+      this.error = error.reason || error.message;
+    }
+    m.redraw();
+  },
+
+  async markReady(gameId) {
+    try {
+      await Meteor.callAsync('game.readyToAdvance', gameId);
+      this.readySubmitted = true;
     } catch (error) {
       this.error = error.reason || error.message;
     }

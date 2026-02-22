@@ -1,7 +1,7 @@
 import m from 'mithril';
 
 // Player list — identical display for humans and AI
-// Attrs: players (array, already stripped of isAI/alignment), currentSeat (number)
+// Attrs: players (array, already stripped of isAI), currentSeat (number)
 export const PlayerPanel = {
   view(vnode) {
     const players = vnode.attrs.players || [];
@@ -12,19 +12,29 @@ export const PlayerPanel = {
       m('ul.crew-list', players.map(player =>
         m('li.crew-member', {
           key: player.seatIndex,
-          class: player.seatIndex === currentSeat ? 'is-self' : '',
+          class: [
+            player.seatIndex === currentSeat ? 'is-self' : '',
+            player.phantomRevealed ? 'phantom-revealed' : '',
+          ].filter(Boolean).join(' '),
         }, [
           m('div.crew-info', [
             m('strong', player.displayName),
             m('small.role-badge', player.role),
+            player.phantomRevealed ? m('mark', 'PHANTOM') : null,
           ]),
           m('div.crew-stats', [
-            m('span', `Supplies: ${player.supplies}`),
+            m('span', `Resolve: ${player.resolve}`),
             player.curses && player.curses.length > 0
               ? m('span.curse-count', `Curses: ${player.curses.length}`)
               : null,
             !player.hasNextAction
               ? m('span.no-action', 'Action lost')
+              : null,
+            player.hasAccused
+              ? m('span.accused', 'Accusation used')
+              : null,
+            player.mealsRemaining !== undefined
+              ? m('span.meals', `Meals: ${player.mealsRemaining}`)
               : null,
           ]),
         ])

@@ -4,7 +4,7 @@ import { GamePhase, Alignment, GameResult, RoomStatus } from '../lib/collections
 import { Roles, getActionStrength } from './roles.js';
 import { createThreatDeck, drawThreats } from './threats.js';
 import { shuffleRoster } from './ai/crewRoster.js';
-import { startPhaseTimer, clearPhaseTimer, PhaseDurations } from './phaseTimer.js';
+import { startPhaseTimer, clearPhaseTimer, getPhaseDuration } from './phaseTimer.js';
 import { resolveTolls, resolveActions, resolveAccusation, checkGameEnd } from './resolution.js';
 import { scheduleAiActions } from './ai/decisionEngine.js';
 import { clearSuspicion, decaySuspicion, updateSuspicion } from './ai/suspicionTracker.js';
@@ -15,8 +15,9 @@ const resolveLocks = new Map();
 
 const DEFAULT_DOOM_THRESHOLD = 15;
 const DEFAULT_MAX_ROUNDS = 10;
-const DEFAULT_STARTING_SUPPLIES = 3;
-const DEFAULT_STARTING_SUPPLIES_MAX = 5;
+const DEFAULT_STARTING_RESOLVE = 3;
+const MAX_RESOLVE = 5;
+const COOK_STARTING_MEALS = 5;
 // Probability that a phantom exists (80% chance)
 const PHANTOM_PROBABILITY = 0.8;
 
@@ -44,6 +45,16 @@ export async function startGame(roomId, totalPlayers) {
   const roster = shuffleRoster();
   const humanUserIds = room.players.map(p => p.userId);
 
+  // Determine expert mode: all human players must have isExpertPlayer: true
+  let expertMode = false;
+  if (humanUserIds.length > 0) {
+    const humanUsers = await Meteor.users.find(
+      { _id: { $in: humanUserIds } },
+      { fields: { isExpertPlayer: 1 } }
+    ).fetchAsync();
+    expertMode = humanUsers.length > 0 && humanUsers.every(u => u.isExpertPlayer === true);
+  }
+
   // Build player array — humans first, then AI fill-ins
   const players = [];
   for (let i = 0; i < totalPlayers; i++) {
@@ -51,7 +62,7 @@ export async function startGame(roomId, totalPlayers) {
     const isAI = i >= humanUserIds.length;
     const userId = isAI ? `ai_${character.roleId}_${roomId}` : humanUserIds[i];
 
-    players.push({
+    const player = {
       seatIndex: i,
       userId,
       displayName: character.characterName,
@@ -60,9 +71,18 @@ export async function startGame(roomId, totalPlayers) {
       alignment: Alignment.LOYAL, // Will assign phantom below
       personality: character.personality,
       hasNextAction: true,
-      supplies: DEFAULT_STARTING_SUPPLIES,
+      resolve: DEFAULT_STARTING_RESOLVE,
       curses: [],
-    });
+      hasAccused: false,
+      phantomRevealed: false,
+    };
+
+    // Cook gets meals
+    if (character.roleId === 'cook') {
+      player.mealsRemaining = COOK_STARTING_MEALS;
+    }
+
+    players.push(player);
   }
 
   // Assign phantom randomly (any seat — human or AI)
@@ -75,6 +95,7 @@ export async function startGame(roomId, totalPlayers) {
   const threatDeck = createThreatDeck();
 
   const now = new Date();
+  const phaseDuration = getPhaseDuration('threat', expertMode);
   const gameId = await Games.insertAsync({
     roomId,
     theme: 'phantom_tides',
@@ -83,10 +104,9 @@ export async function startGame(roomId, totalPlayers) {
     maxRounds,
     currentPhase: GamePhase.THREAT,
     phaseStartedAt: now,
-    phaseDeadline: new Date(now.getTime() + PhaseDurations.threat),
+    phaseDeadline: new Date(now.getTime() + phaseDuration),
     doomLevel: 0,
     doomThreshold,
-    shipSupplies: 10,
     activeThreats: [],
     threatDeck,
     tollSubmissions: [],
@@ -97,6 +117,12 @@ export async function startGame(roomId, totalPlayers) {
     result: null,
     endReason: null,
     llmCallsUsed: 0,
+    expertMode,
+    goldCoins: [],
+    skulls: [],
+    threatsDefeated: 0,
+    readyPlayers: [],
+    tollAggregate: null,
     createdAt: now,
     updatedAt: now,
   });
@@ -146,13 +172,14 @@ export async function advancePhase(gameId) {
 
   const nextPhase = phaseOrder[nextIndex];
   const now = new Date();
-  const duration = PhaseDurations[nextPhase] || 30000;
+  const duration = getPhaseDuration(nextPhase, game.expertMode);
 
   await Games.updateAsync(gameId, {
     $set: {
       currentPhase: nextPhase,
       phaseStartedAt: now,
       phaseDeadline: new Date(now.getTime() + duration),
+      readyPlayers: [],
       updatedAt: now,
     },
   });
@@ -177,45 +204,96 @@ export async function advancePhase(gameId) {
   }
 }
 
-// THREAT PHASE — generate threats, add doom from existing ones
+// THREAT PHASE — generate threats, add doom from existing ones, escalate old threats
 async function runThreatPhase(gameId) {
   const game = await Games.findOneAsync(gameId);
   if (!game) {
     return;
   }
 
-  // Existing threats add doom
+  // Existing threats add doom and escalate if active 2+ rounds
   let doomFromThreats = 0;
-  for (const threat of game.activeThreats) {
+  const newSkulls = [];
+  const updatedThreats = game.activeThreats.map(t => {
+    const threat = { ...t };
     doomFromThreats += threat.doomPerRound;
-  }
+
+    // Track cumulative doom for skull threshold
+    threat.totalDoomCaused = (threat.totalDoomCaused || 0) + threat.doomPerRound;
+
+    // Escalation: threats active for 2+ rounds get worse
+    const roundsActive = game.currentRound - (threat.roundAdded || 1);
+    if (roundsActive >= 2 && !threat.escalated) {
+      threat.escalated = true;
+      threat.doomPerRound += 1;
+      newSkulls.push({
+        round: game.currentRound,
+        reason: 'threat_escalated',
+        description: `${threat.name} worsens`,
+      });
+    }
+
+    // Skull for threats causing 4+ cumulative doom
+    if (threat.totalDoomCaused >= 4 && !threat.skullAwarded) {
+      threat.skullAwarded = true;
+      newSkulls.push({
+        round: game.currentRound,
+        reason: 'threat_ravaged',
+        description: `${threat.name} ravaged the ship`,
+      });
+    }
+
+    return threat;
+  });
 
   // Draw new threats
   const { drawn, remaining } = drawThreats([...game.threatDeck], game.currentRound);
 
-  const newThreats = [...game.activeThreats, ...drawn];
+  const allThreats = [...updatedThreats, ...drawn];
   const newDoom = Math.min(game.doomLevel + doomFromThreats, game.doomThreshold + 10);
 
-  await Games.updateAsync(gameId, {
+  // Doom milestone skulls
+  const oldDoom = game.doomLevel;
+  if (oldDoom < 5 && newDoom >= 5) {
+    newSkulls.push({ round: game.currentRound, reason: 'doom_rising', description: 'Doom rising' });
+  }
+  if (oldDoom < 10 && newDoom >= 10) {
+    newSkulls.push({ round: game.currentRound, reason: 'doom_rising', description: 'Doom rising' });
+  }
+
+  const updateOp = {
     $set: {
-      activeThreats: newThreats,
+      activeThreats: allThreats,
       threatDeck: remaining,
       doomLevel: newDoom,
       updatedAt: new Date(),
     },
-  });
+  };
+  if (newSkulls.length > 0) {
+    updateOp.$push = { skulls: { $each: newSkulls } };
+  }
+
+  await Games.updateAsync(gameId, updateOp);
 
   await appendLog(gameId, game.currentRound, GamePhase.THREAT, 'threats_drawn', {
     newThreats: drawn.map(t => t.name),
     doomAdded: doomFromThreats,
   });
 
+  // Check doom threshold after adding doom from threats
+  if (newDoom >= game.doomThreshold) {
+    const hasPhantom = game.players.some(p => p.alignment === Alignment.PHANTOM);
+    await finishGame(gameId, hasPhantom ? GameResult.PHANTOM_WIN : GameResult.DOOM_LOSS, 'doom_threshold');
+    return;
+  }
+
   // Auto-advance after display time
-  startPhaseTimer(gameId, 'threat', advancePhase);
+  startPhaseTimer(gameId, 'threat', advancePhase, game.expertMode);
 }
 
 // TOLL PHASE — every player must choose a harmful action
 async function runTollPhase(gameId) {
+  const game = await Games.findOneAsync(gameId);
   // Clear previous submissions
   await Games.updateAsync(gameId, {
     $set: { tollSubmissions: [], updatedAt: new Date() },
@@ -227,7 +305,7 @@ async function runTollPhase(gameId) {
   // Timer auto-advances when expired (default tolls applied for non-submitters)
   startPhaseTimer(gameId, 'toll', async (gId) => {
     await resolveTollPhase(gId);
-  });
+  }, game?.expertMode);
 }
 
 // Resolve tolls when all submitted or timer expires
@@ -277,16 +355,18 @@ export async function resolveTollPhase(gameId) {
   }
 }
 
-// DISCUSSION PHASE — 30s chat window
+// DISCUSSION PHASE — chat window
 async function runDiscussionPhase(gameId) {
+  const game = await Games.findOneAsync(gameId);
   // Schedule AI chat messages with human-like delays
   scheduleAiActions(gameId, 'discussion');
 
-  startPhaseTimer(gameId, 'discussion', advancePhase);
+  startPhaseTimer(gameId, 'discussion', advancePhase, game?.expertMode);
 }
 
 // ACTION PHASE — each player assigns their action to a threat
 async function runActionPhase(gameId) {
+  const game = await Games.findOneAsync(gameId);
   await Games.updateAsync(gameId, {
     $set: {
       actionSubmissions: [],
@@ -301,7 +381,7 @@ async function runActionPhase(gameId) {
 
   startPhaseTimer(gameId, 'action', async (gId) => {
     await resolveActionPhase(gId);
-  });
+  }, game?.expertMode);
 }
 
 // Resolve actions when all submitted or timer expires
@@ -356,7 +436,10 @@ export async function resolveActionPhase(gameId) {
       }
     }
 
-    // Reveal all actions simultaneously
+    // Resolve actions (includes zero-resolve penalty and phantom cap)
+    const actionResult = resolveActions(game, allSubmissions);
+
+    // Reveal all actions simultaneously — now includes computed strength
     const revealedActions = allSubmissions.map(sub => {
       const player = game.players.find(p => p.seatIndex === sub.seatIndex);
       return {
@@ -364,19 +447,41 @@ export async function resolveActionPhase(gameId) {
         displayName: player?.displayName || 'Unknown',
         role: player?.role || 'unknown',
         threatId: sub.threatId,
+        strength: actionResult.playerStrengths[sub.seatIndex] || 0,
       };
     });
 
-    const updates = resolveActions(game, allSubmissions);
+    // Award gold coins for completed threats and reduce doom
+    const newCoins = [];
+    let doomReduction = 0;
+    let newDefeated = 0;
+    for (const threat of (actionResult.completedThreats || [])) {
+      newCoins.push({
+        round: game.currentRound,
+        reason: 'threat_resolved',
+        description: `Defeated ${threat.name}`,
+      });
+      doomReduction += 1;
+      newDefeated += 1;
+    }
 
-    await Games.updateAsync(gameId, {
+    const newDoom = Math.max(0, game.doomLevel - doomReduction);
+
+    const updateOp = {
       $set: {
         lookoutReveal,
         revealedActions,
-        ...updates,
+        activeThreats: actionResult.activeThreats,
+        doomLevel: newDoom,
         updatedAt: new Date(),
       },
-    });
+      $inc: { threatsDefeated: newDefeated },
+    };
+    if (newCoins.length > 0) {
+      updateOp.$push = { goldCoins: { $each: newCoins } };
+    }
+
+    await Games.updateAsync(gameId, updateOp);
 
     // Update AI suspicion based on action choices
     updateSuspicionFromActions(game, allSubmissions);
@@ -393,6 +498,7 @@ export async function resolveActionPhase(gameId) {
 
 // ACCUSATION PHASE — optional player-initiated
 async function runAccusationPhase(gameId) {
+  const game = await Games.findOneAsync(gameId);
   await Games.updateAsync(gameId, {
     $set: { accusation: null, updatedAt: new Date() },
   });
@@ -402,16 +508,16 @@ async function runAccusationPhase(gameId) {
 
   startPhaseTimer(gameId, 'accusation', async (gId) => {
     // If no accusation was made, just advance
-    const game = await Games.findOneAsync(gId);
-    if (game && !game.accusation) {
+    const g = await Games.findOneAsync(gId);
+    if (g && !g.accusation) {
       await advancePhase(gId);
-    } else if (game && game.accusation && !game.accusation.resolved) {
+    } else if (g && g.accusation && !g.accusation.resolved) {
       // Resolve any pending accusation
       await resolveAccusationPhase(gId);
     } else {
       await advancePhase(gId);
     }
-  });
+  }, game?.expertMode);
 }
 
 // Resolve accusation vote
@@ -432,13 +538,32 @@ export async function resolveAccusationPhase(gameId) {
 
     const result = resolveAccusation(game, game.accusation);
 
-    await Games.updateAsync(gameId, {
-      $set: {
-        accusation: { ...game.accusation, resolved: true, ...result },
-        players: result.updatedPlayers || game.players,
-        updatedAt: new Date(),
-      },
-    });
+    // Build update operations
+    const setOp = {
+      accusation: { ...game.accusation, resolved: true, ...result },
+      players: result.updatedPlayers || game.players,
+      updatedAt: new Date(),
+    };
+
+    // Apply doom change from accusation
+    if (result.doomChange) {
+      setOp.doomLevel = Math.max(0, Math.min(game.doomLevel + result.doomChange, game.doomThreshold + 10));
+    }
+
+    const updateOp = { $set: setOp };
+
+    // Push scoring events
+    if (result.goldCoin) {
+      updateOp.$push = { goldCoins: result.goldCoin };
+    }
+    if (result.skull) {
+      if (!updateOp.$push) {
+        updateOp.$push = {};
+      }
+      updateOp.$push.skulls = result.skull;
+    }
+
+    await Games.updateAsync(gameId, updateOp);
 
     await appendLog(gameId, game.currentRound, GamePhase.ACCUSATION, 'accusation_resolved', {
       accuserSeat: game.accusation.accuserSeat,
@@ -472,56 +597,127 @@ export async function resolveAccusationPhase(gameId) {
       }
     }
 
-    // Check if phantom was caught — game might end
-    if (result.correct) {
-      await finishGame(gameId, GameResult.LOYAL_WIN, 'phantom_caught');
-      return;
+    // Check if doom threshold was crossed by wrong accusation
+    if (result.doomChange > 0) {
+      const updatedGame = await Games.findOneAsync(gameId);
+      if (updatedGame && updatedGame.doomLevel >= updatedGame.doomThreshold) {
+        const hasPhantom = updatedGame.players.some(p => p.alignment === Alignment.PHANTOM);
+        await finishGame(gameId, hasPhantom ? GameResult.PHANTOM_WIN : GameResult.DOOM_LOSS, 'doom_threshold');
+        return;
+      }
     }
 
+    // Phantom caught — game continues now (no longer ends)
     await advancePhase(gameId);
   } finally {
     resolveLocks.delete(lockKey);
   }
 }
 
-// ROUND END PHASE — check win/loss, increment round
+// ROUND END PHASE — Cook nourish, curse drain, score clean sailing, check win/loss
 async function runRoundEndPhase(gameId) {
   const game = await Games.findOneAsync(gameId);
   if (!game) {
     return;
   }
 
-  // Apply Cook's passive heal and curse drain in a single pass
-  const hasCook = game.players.some(p => p.role === 'cook');
+  // Apply curse drain (rotting_stores) — no more passive Cook heal
   const updatedPlayers = game.players.map(p => {
-    let supplies = p.supplies;
-    if (hasCook) {
-      supplies = Math.min(supplies + 1, DEFAULT_STARTING_SUPPLIES_MAX);
-    }
+    let resolve = p.resolve;
     const hasDrain = p.curses.some(c => c.effect === 'supplyDrain');
     if (hasDrain) {
-      supplies = Math.max(supplies - 1, 0);
+      resolve = Math.max(resolve - 1, 0);
     }
-    return { ...p, supplies };
+    return { ...p, resolve };
   });
   await Games.updateAsync(gameId, {
     $set: { players: updatedPlayers, updatedAt: new Date() },
   });
 
+  // Check for "clean sailing" gold coin — doom didn't increase this round
+  // (We track this by comparing doomLevel at round start; for simplicity, award
+  // if no threats are currently active after resolution)
+  const newCoins = [];
+  if (game.activeThreats.length === 0) {
+    newCoins.push({
+      round: game.currentRound,
+      reason: 'clean_sailing',
+      description: 'Clean sailing',
+    });
+  }
+  if (newCoins.length > 0) {
+    await Games.updateAsync(gameId, { $push: { goldCoins: { $each: newCoins } } });
+  }
+
   // Decay suspicion so one-time offenders fade over quiet rounds
   decaySuspicion(gameId);
 
   // Check game end conditions
-  const endCheck = checkGameEnd(await Games.findOneAsync(gameId));
+  const freshGame = await Games.findOneAsync(gameId);
+  const endCheck = checkGameEnd(freshGame);
   if (endCheck.ended) {
     await finishGame(gameId, endCheck.result, endCheck.reason);
     return;
   }
 
-  // Auto-advance after display, then start next round
-  startPhaseTimer(gameId, 'round_end', async (gId) => {
-    await startNextRound(gId);
+  // Schedule AI Cook nourish during round_end
+  const cook = freshGame.players.find(p => p.role === 'cook');
+  if (cook && (cook.mealsRemaining || 0) > 0) {
+    scheduleAiActions(gameId, 'cook_nourish');
+  }
+
+  // Timer to advance — longer when Cook has meals
+  const hasCookWithMeals = cook && (cook.mealsRemaining || 0) > 0;
+  if (hasCookWithMeals) {
+    // Give Cook time to choose (use round_end duration which is now 10-15s)
+    startPhaseTimer(gameId, 'round_end', async (gId) => {
+      await startNextRound(gId);
+    }, game.expertMode);
+  } else {
+    startPhaseTimer(gameId, 'round_end', async (gId) => {
+      await startNextRound(gId);
+    }, game.expertMode);
+  }
+}
+
+// Cook nourish action — called from gameMethods or AI
+export async function applyCookNourish(gameId, cookSeatIndex, targetSeatIndex) {
+  const game = await Games.findOneAsync(gameId);
+  if (!game || game.currentPhase !== GamePhase.ROUND_END) {
+    return false;
+  }
+
+  const cook = game.players.find(p => p.seatIndex === cookSeatIndex && p.role === 'cook');
+  if (!cook || (cook.mealsRemaining || 0) <= 0) {
+    return false;
+  }
+
+  const target = game.players.find(p => p.seatIndex === targetSeatIndex);
+  if (!target || target.phantomRevealed) {
+    return false;
+  }
+
+  const updatedPlayers = game.players.map(p => {
+    if (p.seatIndex === targetSeatIndex) {
+      return { ...p, resolve: Math.min(p.resolve + 1, MAX_RESOLVE) };
+    }
+    if (p.seatIndex === cookSeatIndex) {
+      return { ...p, mealsRemaining: (p.mealsRemaining || 0) - 1 };
+    }
+    return { ...p };
   });
+
+  await Games.updateAsync(gameId, {
+    $set: { players: updatedPlayers, updatedAt: new Date() },
+  });
+
+  await appendLog(gameId, game.currentRound, GamePhase.ROUND_END, 'cook_nourish', {
+    cookSeat: cookSeatIndex,
+    targetSeat: targetSeatIndex,
+    targetName: target.displayName,
+  });
+
+  return true;
 }
 
 // Start a new round
@@ -533,8 +729,10 @@ async function startNextRound(gameId) {
 
   const nextRound = game.currentRound + 1;
   const now = new Date();
+  const phaseDuration = getPhaseDuration('threat', game.expertMode);
 
   // Restore hasNextAction for all players
+  // Revealed phantom: toll forced to doom (server-enforced)
   const resetPlayers = game.players.map(p => ({
     ...p,
     hasNextAction: true,
@@ -545,12 +743,14 @@ async function startNextRound(gameId) {
       currentRound: nextRound,
       currentPhase: GamePhase.THREAT,
       phaseStartedAt: now,
-      phaseDeadline: new Date(now.getTime() + PhaseDurations.threat),
+      phaseDeadline: new Date(now.getTime() + phaseDuration),
       tollSubmissions: [],
       actionSubmissions: [],
       revealedActions: null,
       lookoutReveal: null,
       accusation: null,
+      readyPlayers: [],
+      tollAggregate: null,
       players: resetPlayers,
       updatedAt: now,
     },
@@ -594,6 +794,19 @@ async function finishGame(gameId, result, reason) {
   clearSuspicion(gameId);
 }
 
+// Check if all humans are ready to advance (early submit)
+export async function checkReadyToAdvance(gameId) {
+  const game = await Games.findOneAsync(gameId);
+  if (!game) {
+    return;
+  }
+  const humanPlayers = game.players.filter(p => !p.isAI);
+  const allReady = humanPlayers.every(p => (game.readyPlayers || []).includes(p.seatIndex));
+  if (allReady && humanPlayers.length > 0) {
+    await advancePhase(gameId);
+  }
+}
+
 // Update AI suspicion scores based on toll results
 function updateSuspicionFromTolls(game, submissions) {
   const aiPlayers = game.players.filter(p => p.isAI);
@@ -603,7 +816,7 @@ function updateSuspicionFromTolls(game, submissions) {
         continue;
       }
       const eventType = sub.choice === 'doom' ? 'toll_doom'
-        : sub.choice === 'supply' ? 'toll_supply'
+        : sub.choice === 'resolve' ? 'toll_supply'
         : 'toll_curse';
       updateSuspicion(game._id, ai.seatIndex, sub.seatIndex, eventType);
     }
@@ -644,6 +857,16 @@ function updateSuspicionFromActions(game, submissions) {
       const nearCompletion = targetedThreat.threshold > 0 && (targetedThreat.progress / targetedThreat.threshold) > 0.6;
       const eventType = (targetedStrength >= bestStrength || nearCompletion) ? 'action_optimal' : 'action_suboptimal';
       updateSuspicion(game._id, ai.seatIndex, sub.seatIndex, eventType);
+
+      // Extra suspicion for ignoring escalated threats when you're the specialist
+      if (targetedThreat.escalated === false || !targetedThreat.escalated) {
+        const escalatedThreats = game.activeThreats.filter(t => t.escalated);
+        for (const et of escalatedThreats) {
+          if (getActionStrength(role, et.type) >= bestStrength) {
+            updateSuspicion(game._id, ai.seatIndex, sub.seatIndex, 'action_ignored_escalated');
+          }
+        }
+      }
     }
   }
 }
@@ -701,3 +924,4 @@ export async function convertToAi(gameId, seatIndex) {
 registerResolver('resolveTollPhase', resolveTollPhase);
 registerResolver('resolveActionPhase', resolveActionPhase);
 registerResolver('resolveAccusationPhase', resolveAccusationPhase);
+registerResolver('applyCookNourish', applyCookNourish);

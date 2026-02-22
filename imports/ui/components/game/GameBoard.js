@@ -8,6 +8,9 @@ import { PlayerPanel } from './PlayerPanel.js';
 import { PhasePanel } from './PhasePanel.js';
 import { GameLogPanel } from './GameLogPanel.js';
 import { GameOverScreen } from './GameOverScreen.js';
+import { GuideTooltip } from './GuideTooltip.js';
+import { GameIntro } from './GameIntro.js';
+import { GameHistory } from './GameHistory.js';
 
 // Main game board component — subscribes to game data and orchestrates sub-components
 // Attrs: gameId
@@ -19,6 +22,7 @@ export const GameBoard = {
     this.subs = [];
     this.computations = [];
     this.heartbeatInterval = null;
+    this.showIntro = true;
   },
 
   oncreate(vnode) {
@@ -80,6 +84,18 @@ export const GameBoard = {
 
     // Find current player's seat
     const myPlayer = game.players.find(p => p.userId === Meteor.userId());
+    const user = Meteor.user();
+    const expertMode = game.expertMode || false;
+
+    // Game intro for non-expert players
+    if (this.showIntro && !expertMode && game.currentRound === 1) {
+      return m(GameIntro, {
+        expertMode,
+        onDismiss: () => {
+          this.showIntro = false;
+        },
+      });
+    }
 
     // Game over screen
     if (game.currentPhase === 'finished') {
@@ -90,6 +106,7 @@ export const GameBoard = {
 
     return m('div.game-container', [
       m(GameHeader, { game }),
+      m(GuideTooltip, { phase: game.currentPhase, expertMode }),
 
       m('div.game-layout', [
         m('div.game-main', [
@@ -102,6 +119,7 @@ export const GameBoard = {
             players: game.players,
             currentSeat: myPlayer?.seatIndex,
           }),
+          m(GameHistory, { logs: this.logs, game }),
           m(GameLogPanel, { logs: this.logs }),
         ]),
       ]),

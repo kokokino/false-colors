@@ -2,13 +2,13 @@ import { Meteor } from 'meteor/meteor';
 import { check, Match } from 'meteor/check';
 import { Games, GameMessages } from '../imports/api/collections.js';
 import { GamePhase, GameConstants } from '../imports/lib/collections/games.js';
-import { resolveTollPhase, resolveActionPhase, resolveAccusationPhase } from '../imports/game/stateMachine.js';
+import { resolveTollPhase, resolveActionPhase, resolveAccusationPhase, checkReadyToAdvance, applyCookNourish } from '../imports/game/stateMachine.js';
 
 Meteor.methods({
   // Submit a toll choice during TOLL phase
   async 'game.submitToll'(gameId, choice) {
     check(gameId, String);
-    check(choice, Match.Where(v => ['supply', 'doom', 'curse'].includes(v)));
+    check(choice, Match.Where(v => ['resolve', 'doom', 'curse'].includes(v)));
 
     if (!this.userId) {
       throw new Meteor.Error('not-authorized', 'You must be logged in');
@@ -28,8 +28,15 @@ Meteor.methods({
       throw new Meteor.Error('not-in-game', 'You are not in this game');
     }
 
-    if (choice === 'supply' && player.supplies <= 0 && (game.shipSupplies || 0) <= 0) {
-      throw new Meteor.Error('no-supplies', 'No personal or ship supplies remaining');
+    // Revealed phantom: forced to doom
+    if (player.phantomRevealed) {
+      if (choice !== 'doom') {
+        throw new Meteor.Error('phantom-forced', 'Revealed phantom must choose doom');
+      }
+    }
+
+    if (choice === 'resolve' && player.resolve <= 0) {
+      throw new Meteor.Error('no-resolve', 'No resolve remaining');
     }
 
     // Atomic check-and-push: prevents TOCTOU double-submission race
@@ -218,6 +225,21 @@ Meteor.methods({
       throw new Meteor.Error('not-in-game', 'You are not in this game');
     }
 
+    // One accusation per player per game
+    if (accuser.hasAccused) {
+      throw new Meteor.Error('already-accused', 'You have already used your accusation this game');
+    }
+
+    // No accusations before round 3
+    if (game.currentRound < 3) {
+      throw new Meteor.Error('too-early', 'Accusations begin in round 3');
+    }
+
+    // Revealed phantom cannot accuse
+    if (accuser.phantomRevealed) {
+      throw new Meteor.Error('phantom-revealed', 'Revealed phantoms cannot accuse');
+    }
+
     if (!accuser.hasNextAction) {
       throw new Meteor.Error('no-action', 'You have lost your action and cannot accuse');
     }
@@ -231,6 +253,14 @@ Meteor.methods({
     if (!target) {
       throw new Meteor.Error('invalid-target', 'Target player not found');
     }
+
+    // Mark accuser as having used their accusation
+    const updatedPlayers = game.players.map(p => {
+      if (p.seatIndex === accuser.seatIndex) {
+        return { ...p, hasAccused: true };
+      }
+      return { ...p };
+    });
 
     // Atomic check-and-set: prevents TOCTOU double-accusation race
     const updated = await Games.updateAsync(
@@ -247,6 +277,7 @@ Meteor.methods({
             votes: [],
             resolved: false,
           },
+          players: updatedPlayers,
           updatedAt: new Date(),
         },
       }
@@ -308,5 +339,96 @@ Meteor.methods({
     if (updatedGame.accusation.votes.length >= eligibleVoters) {
       await resolveAccusationPhase(gameId);
     }
+  },
+
+  // Signal ready to advance (discussion/accusation phases)
+  async 'game.readyToAdvance'(gameId) {
+    check(gameId, String);
+
+    if (!this.userId) {
+      throw new Meteor.Error('not-authorized', 'You must be logged in');
+    }
+
+    const game = await Games.findOneAsync(gameId);
+    if (!game) {
+      throw new Meteor.Error('not-found', 'Game not found');
+    }
+
+    const allowedPhases = [GamePhase.DISCUSSION, GamePhase.ACCUSATION];
+    if (!allowedPhases.includes(game.currentPhase)) {
+      throw new Meteor.Error('wrong-phase', 'Cannot ready in this phase');
+    }
+
+    const player = game.players.find(p => p.userId === this.userId);
+    if (!player) {
+      throw new Meteor.Error('not-in-game', 'You are not in this game');
+    }
+
+    // Atomic add to readyPlayers
+    await Games.updateAsync(
+      { _id: gameId, 'readyPlayers': { $ne: player.seatIndex } },
+      { $push: { readyPlayers: player.seatIndex }, $set: { updatedAt: new Date() } }
+    );
+
+    await checkReadyToAdvance(gameId);
+  },
+
+  // Cook nourish — restore 1 resolve to a crew member during ROUND_END
+  async 'game.cookNourish'(gameId, targetSeatIndex) {
+    check(gameId, String);
+    check(targetSeatIndex, Match.Integer);
+
+    if (!this.userId) {
+      throw new Meteor.Error('not-authorized', 'You must be logged in');
+    }
+
+    const game = await Games.findOneAsync(gameId);
+    if (!game) {
+      throw new Meteor.Error('not-found', 'Game not found');
+    }
+
+    if (game.currentPhase !== GamePhase.ROUND_END) {
+      throw new Meteor.Error('wrong-phase', 'Not in round end phase');
+    }
+
+    const cook = game.players.find(p => p.userId === this.userId);
+    if (!cook) {
+      throw new Meteor.Error('not-in-game', 'You are not in this game');
+    }
+
+    if (cook.role !== 'cook') {
+      throw new Meteor.Error('not-cook', 'Only the Cook can nourish');
+    }
+
+    if ((cook.mealsRemaining || 0) <= 0) {
+      throw new Meteor.Error('no-meals', 'No meals remaining');
+    }
+
+    const target = game.players.find(p => p.seatIndex === targetSeatIndex);
+    if (!target) {
+      throw new Meteor.Error('invalid-target', 'Target player not found');
+    }
+
+    if (target.phantomRevealed) {
+      throw new Meteor.Error('invalid-target', 'Cannot nourish a revealed phantom');
+    }
+
+    const success = await applyCookNourish(gameId, cook.seatIndex, targetSeatIndex);
+    if (!success) {
+      throw new Meteor.Error('nourish-failed', 'Could not nourish target');
+    }
+  },
+
+  // Set expert mode for current user
+  async 'user.setExpertMode'(expertMode) {
+    check(expertMode, Boolean);
+
+    if (!this.userId) {
+      throw new Meteor.Error('not-authorized', 'You must be logged in');
+    }
+
+    await Meteor.users.updateAsync(this.userId, {
+      $set: { isExpertPlayer: expertMode },
+    });
   },
 });

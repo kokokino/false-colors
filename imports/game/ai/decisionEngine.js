@@ -5,7 +5,7 @@ import { Personalities } from './personalities.js';
 import { chooseLoyalToll, choosePhantomToll } from './tollStrategy.js';
 import { chooseLoyalAction, choosePhantomAction } from './actionStrategy.js';
 import { shouldLoyalAccuse, shouldPhantomAccuse, voteOnAccusation } from './accusationStrategy.js';
-import { initSuspicion } from './suspicionTracker.js';
+import { initSuspicion, updateSuspicion } from './suspicionTracker.js';
 import { generateAiDialogue } from '../../ai/dialogueEngine.js';
 import { getResolver } from '../resolverRegistry.js';
 
@@ -68,6 +68,17 @@ async function scheduleAsync(gameId, phase, specificPlayers) {
         }, delay);
       }
       break;
+
+    case 'cook_nourish':
+      for (const ai of aiPlayers) {
+        if (ai.role === 'cook' && (ai.mealsRemaining || 0) > 0) {
+          const delay = randomDelay(2000, 5000);
+          Meteor.setTimeout(() => {
+            submitAiCookNourish(gameId, ai).catch(err => console.error('[ai] nourish error:', err));
+          }, delay);
+        }
+      }
+      break;
   }
 }
 
@@ -85,6 +96,11 @@ async function submitAiToll(gameId, aiPlayer) {
     choice = choosePhantomToll(aiPlayer, game, personality, game.currentRound);
   } else {
     choice = chooseLoyalToll(aiPlayer, game, personality);
+  }
+
+  // Revealed phantom forced to doom
+  if (aiPlayer.phantomRevealed) {
+    choice = 'doom';
   }
 
   const updated = await Games.updateAsync(
@@ -156,6 +172,69 @@ async function submitAiAction(gameId, aiPlayer) {
   }
 }
 
+// AI Cook nourish — pick best target during round_end
+async function submitAiCookNourish(gameId, aiPlayer) {
+  const game = await Games.findOneAsync(gameId);
+  if (!game || game.currentPhase !== 'round_end') {
+    return;
+  }
+
+  // Re-check current player state
+  const cook = game.players.find(p => p.seatIndex === aiPlayer.seatIndex && p.role === 'cook');
+  if (!cook || (cook.mealsRemaining || 0) <= 0) {
+    return;
+  }
+
+  const applyCookNourish = getResolver('applyCookNourish');
+  if (!applyCookNourish) {
+    return;
+  }
+
+  // Choose target based on alignment
+  const nonRevealed = game.players.filter(p => !p.phantomRevealed && p.seatIndex !== cook.seatIndex);
+  if (nonRevealed.length === 0) {
+    return;
+  }
+
+  let target;
+  if (cook.alignment === Alignment.PHANTOM && !cook.phantomRevealed) {
+    // Phantom Cook: suboptimal nourish
+    const personality = Personalities[cook.personality];
+    const traits = personality?.traits || {};
+    if (Math.random() < 0.3 + (1 - traits.actionOptimality) * 0.3) {
+      // Heal self or highest resolve player (wasteful)
+      const sortedByResolve = [...nonRevealed].sort((a, b) => b.resolve - a.resolve);
+      target = sortedByResolve[0];
+    } else {
+      // Sometimes skip entirely
+      if (Math.random() < 0.3) {
+        return;
+      }
+      // Pick randomly
+      target = nonRevealed[Math.floor(Math.random() * nonRevealed.length)];
+    }
+  } else {
+    // Loyal Cook: nourish lowest resolve player
+    const sortedByResolve = [...nonRevealed].sort((a, b) => a.resolve - b.resolve);
+    target = sortedByResolve[0];
+  }
+
+  if (target) {
+    await applyCookNourish(gameId, cook.seatIndex, target.seatIndex);
+
+    // Update suspicion for Cook's nourish choice
+    const aiPlayers = game.players.filter(p => p.isAI && p.seatIndex !== cook.seatIndex);
+    const lowestResolve = Math.min(...nonRevealed.map(p => p.resolve));
+    const desperate = nonRevealed.filter(p => p.resolve === 0);
+    if (desperate.length > 0 && target.resolve > 0) {
+      // Nourished someone who doesn't need it when someone is at 0
+      for (const ai of aiPlayers) {
+        updateSuspicion(gameId, ai.seatIndex, cook.seatIndex, 'cook_nourish_wasteful');
+      }
+    }
+  }
+}
+
 // Schedule AI discussion messages with 3-8 second delays
 function scheduleAiDiscussion(gameId, aiPlayer, game) {
   const personality = Personalities[aiPlayer.personality];
@@ -182,14 +261,34 @@ function scheduleAiDiscussion(gameId, aiPlayer, game) {
 
         let trigger;
         const doomHigh = currentGame.doomLevel > currentGame.doomThreshold * 0.6;
+        const tollAgg = currentGame.tollAggregate;
+        const doomTolls = tollAgg ? tollAgg.doomCount : 0;
+
         if (i === 0) {
-          trigger = currentGame.currentRound === 1 ? 'greeting' : 'tollReaction';
+          if (currentGame.currentRound === 1) {
+            trigger = 'greeting';
+          } else if (doomTolls >= 2) {
+            trigger = 'tollObservation';
+          } else {
+            trigger = 'tollReaction';
+          }
         } else if (i === 1) {
-          // When doom is high, sometimes warn about doom instead of assessing threats
-          trigger = doomHigh && Math.random() < 0.4 ? 'doomWarning' : 'threatAssessment';
+          // Comment on actions or doom
+          if (currentGame.revealedActions && Math.random() < 0.5) {
+            trigger = 'actionObservation';
+          } else if (doomHigh && Math.random() < 0.4) {
+            trigger = 'doomWarning';
+          } else {
+            trigger = 'threatAssessment';
+          }
         } else {
-          trigger = doomHigh && Math.random() < 0.5 ? 'doomWarning' : 'commentary';
+          if (currentGame.goldCoins && currentGame.skulls) {
+            trigger = (Math.random() < 0.3) ? 'scoreObservation' : (doomHigh ? 'doomWarning' : 'commentary');
+          } else {
+            trigger = doomHigh && Math.random() < 0.5 ? 'doomWarning' : 'commentary';
+          }
         }
+
         const text = await generateAiDialogue(currentGame, aiPlayer, trigger);
 
         await GameMessages.insertAsync({
@@ -264,6 +363,11 @@ async function handleAiAccusation(gameId, aiPlayer) {
     return; // Already an accusation this round
   }
 
+  // Revealed phantom cannot accuse
+  if (aiPlayer.phantomRevealed) {
+    return;
+  }
+
   let targetSeat;
   if (aiPlayer.alignment === Alignment.PHANTOM) {
     targetSeat = shouldPhantomAccuse(aiPlayer, game, personality);
@@ -274,6 +378,14 @@ async function handleAiAccusation(gameId, aiPlayer) {
   if (targetSeat === null) {
     return;
   }
+
+  // Mark hasAccused atomically with the accusation
+  const updatedPlayers = game.players.map(p => {
+    if (p.seatIndex === aiPlayer.seatIndex) {
+      return { ...p, hasAccused: true };
+    }
+    return { ...p };
+  });
 
   // Atomic check-and-set: prevents TOCTOU double-accusation race
   const updated = await Games.updateAsync(
@@ -290,6 +402,7 @@ async function handleAiAccusation(gameId, aiPlayer) {
           votes: [],
           resolved: false,
         },
+        players: updatedPlayers,
         updatedAt: new Date(),
       },
     }
