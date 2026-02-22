@@ -7,6 +7,7 @@ export const ThreatType = {
   KRAKEN: 'kraken',
   STORM: 'storm',
   ILLNESS: 'illness',
+  HULL_BREACH: 'hull_breach',
 };
 
 const threatDeck = [
@@ -34,6 +35,11 @@ const threatDeck = [
   { type: ThreatType.ILLNESS, name: 'Fever Sweats', threshold: 3, doomPerRound: 1, description: 'Several crew members collapse with fever.' },
   { type: ThreatType.ILLNESS, name: 'Spectral Plague', threshold: 5, doomPerRound: 1, description: 'An unnatural sickness spreads through the crew.' },
   { type: ThreatType.ILLNESS, name: 'Death Rattle', threshold: 7, doomPerRound: 2, description: 'The crew wastes away as a deadly plague takes hold.' },
+
+  // Hull breach threats — Quartermaster specialty
+  { type: ThreatType.HULL_BREACH, name: 'Cracked Planks', threshold: 4, doomPerRound: 1, description: 'Water seeps through weakened planking below the waterline.' },
+  { type: ThreatType.HULL_BREACH, name: 'Shattered Hull', threshold: 6, doomPerRound: 2, description: 'A gaping hole lets the cursed sea pour in.' },
+  { type: ThreatType.HULL_BREACH, name: 'Keelbreak', threshold: 8, doomPerRound: 2, description: 'The keel itself splinters — the ship is tearing apart.' },
 ];
 
 // Shuffle an array using Fisher-Yates

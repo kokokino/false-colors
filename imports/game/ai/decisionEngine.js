@@ -5,8 +5,9 @@ import { Personalities } from './personalities.js';
 import { chooseLoyalToll, choosePhantomToll } from './tollStrategy.js';
 import { chooseLoyalAction, choosePhantomAction } from './actionStrategy.js';
 import { shouldLoyalAccuse, shouldPhantomAccuse, voteOnAccusation } from './accusationStrategy.js';
-import { initSuspicion, updateSuspicion } from './suspicionTracker.js';
+import { initSuspicion } from './suspicionTracker.js';
 import { generateAiDialogue } from '../../ai/dialogueEngine.js';
+import { getResolver } from '../resolverRegistry.js';
 
 // Random delay between min and max milliseconds
 function randomDelay(min, max) {
@@ -98,8 +99,10 @@ async function submitAiToll(gameId, aiPlayer) {
   // Check if all players have submitted — resolve if so
   const updatedGame = await Games.findOneAsync(gameId);
   if (updatedGame && updatedGame.tollSubmissions.length >= updatedGame.players.length) {
-    const { resolveTollPhase } = require('../stateMachine.js');
-    await resolveTollPhase(gameId);
+    const resolveTollPhase = getResolver('resolveTollPhase');
+    if (resolveTollPhase) {
+      await resolveTollPhase(gameId);
+    }
   }
 }
 
@@ -147,8 +150,10 @@ async function submitAiAction(gameId, aiPlayer) {
   if (updatedGame) {
     const playersWithActions = updatedGame.players.filter(p => p.hasNextAction).length;
     if (updatedGame.actionSubmissions.length >= playersWithActions) {
-      const { resolveActionPhase } = require('../stateMachine.js');
-      await resolveActionPhase(gameId);
+      const resolveActionPhase = getResolver('resolveActionPhase');
+      if (resolveActionPhase) {
+        await resolveActionPhase(gameId);
+      }
     }
   }
 }
@@ -156,7 +161,11 @@ async function submitAiAction(gameId, aiPlayer) {
 // Schedule AI discussion messages with 3-8 second delays
 function scheduleAiDiscussion(gameId, aiPlayer, game) {
   const personality = Personalities[aiPlayer.personality];
-  const messageCount = personality.traits.chatFrequency > 0.6 ? 2 + Math.floor(Math.random() * 2) : 1;
+
+  // Spectral chill curse limits to 1 message
+  const hasSpectralChill = aiPlayer.curses.some(c => c.effect === 'discussionPenalty');
+  const messageCount = hasSpectralChill ? 1
+    : personality.traits.chatFrequency > 0.6 ? 2 + Math.floor(Math.random() * 2) : 1;
 
   for (let i = 0; i < messageCount; i++) {
     const delay = randomDelay(3000, 8000) + (i * randomDelay(3000, 6000));
@@ -224,8 +233,10 @@ async function handleAiAccusation(gameId, aiPlayer) {
     // Check if all eligible voters have voted
     const eligibleVoters = currentGame.players.length - 2;
     if (newVotes.length >= eligibleVoters) {
-      const { resolveAccusationPhase } = require('../stateMachine.js');
-      await resolveAccusationPhase(gameId);
+      const resolveAccusationPhase = getResolver('resolveAccusationPhase');
+      if (resolveAccusationPhase) {
+        await resolveAccusationPhase(gameId);
+      }
     }
     return;
   }
@@ -263,6 +274,41 @@ async function handleAiAccusation(gameId, aiPlayer) {
       updatedAt: new Date(),
     },
   });
+
+  // Generate accusation dialogue
+  const targetPlayer = freshGame.players.find(p => p.seatIndex === targetSeat);
+  const accusationText = await generateAiDialogue(freshGame, aiPlayer, 'accusation', {
+    player_name: targetPlayer?.displayName || 'someone',
+  });
+  await GameMessages.insertAsync({
+    gameId,
+    round: freshGame.currentRound,
+    seatIndex: aiPlayer.seatIndex,
+    displayName: aiPlayer.displayName,
+    text: accusationText,
+    createdAt: new Date(),
+  });
+
+  // If the target is AI, generate defense dialogue after a short delay
+  if (targetPlayer && targetPlayer.isAI) {
+    Meteor.setTimeout(async () => {
+      const currentGame = await Games.findOneAsync(gameId);
+      if (!currentGame || currentGame.currentPhase !== 'accusation') {
+        return;
+      }
+      const defenseText = await generateAiDialogue(currentGame, targetPlayer, 'defense', {
+        player_name: aiPlayer.displayName,
+      });
+      await GameMessages.insertAsync({
+        gameId,
+        round: currentGame.currentRound,
+        seatIndex: targetPlayer.seatIndex,
+        displayName: targetPlayer.displayName,
+        text: defenseText,
+        createdAt: new Date(),
+      });
+    }, randomDelay(1500, 3000));
+  }
 
   // Schedule other AIs to vote after a short delay
   const otherAis = freshGame.players.filter(p =>

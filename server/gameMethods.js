@@ -139,6 +139,19 @@ Meteor.methods({
       throw new Meteor.Error('not-in-game', 'You are not in this game');
     }
 
+    // Spectral chill curse limits player to 1 message per discussion phase
+    const hasSpectralChill = player.curses.some(c => c.effect === 'discussionPenalty');
+    if (hasSpectralChill) {
+      const messageCount = await GameMessages.find({
+        gameId,
+        round: game.currentRound,
+        seatIndex: player.seatIndex,
+      }).countAsync();
+      if (messageCount >= 1) {
+        throw new Meteor.Error('curse-limit', 'Spectral Chill limits you to 1 message per discussion');
+      }
+    }
+
     await GameMessages.insertAsync({
       gameId,
       round: game.currentRound,

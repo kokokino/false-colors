@@ -12,7 +12,8 @@ Migrations.add({
     await rooms.createIndex({ 'players.userId': 1 });
     await rooms.createIndex({ lastActiveAt: 1, status: 1 });
     await rooms.createIndex({ countdownStartedAt: 1 });
-    console.log('Created GameRooms indexes');
+    await rooms.createIndex({ createdAt: 1 }, { expireAfterSeconds: TTL_24_HOURS });
+    console.log('Created GameRooms indexes (24h TTL)');
 
     const games = Games.rawCollection();
     await games.createIndex({ roomId: 1 });
@@ -36,6 +37,7 @@ Migrations.add({
     await rooms.dropIndex('players.userId_1');
     await rooms.dropIndex('lastActiveAt_1_status_1');
     await rooms.dropIndex('countdownStartedAt_1');
+    await rooms.dropIndex('createdAt_1');
 
     const games = Games.rawCollection();
     await games.dropIndex('roomId_1');

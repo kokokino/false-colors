@@ -21,6 +21,11 @@ Meteor.startup(async () => {
   await GameRooms.createIndexAsync({ status: 1, createdAt: -1 });
   await GameRooms.createIndexAsync({ 'players.userId': 1 });
   await GameRooms.createIndexAsync({ lastActiveAt: 1, status: 1 });
+  // TTL index: auto-delete rooms after 24 hours
+  await GameRooms.createIndexAsync(
+    { createdAt: 1 },
+    { expireAfterSeconds: 86400 }
+  );
 
   // Game indexes
   await Games.createIndexAsync({ roomId: 1 });

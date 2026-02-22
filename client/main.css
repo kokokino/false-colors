@@ -139,6 +139,12 @@ footer {
    Game Styles
    =========================== */
 
+/* Muted text */
+.muted {
+  color: var(--pico-muted-color);
+  font-size: 0.9rem;
+}
+
 /* Game container */
 .game-container {
   max-width: 100%;
@@ -513,7 +519,5 @@ footer {
 }
 
 .lobby-waiting .muted {
-  color: var(--pico-muted-color);
-  font-size: 0.9rem;
   margin-bottom: 1rem;
 }

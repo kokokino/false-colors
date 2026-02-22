@@ -1,17 +1,20 @@
 import { Meteor } from 'meteor/meteor';
 import { GameRooms, Games, GameLog } from '../api/collections.js';
 import { GamePhase, Alignment, GameResult, RoomStatus } from '../lib/collections/games.js';
-import { RoleList } from './roles.js';
+import { RoleList, Roles, getActionStrength } from './roles.js';
 import { createThreatDeck, drawThreats } from './threats.js';
 import { shuffleRoster } from './ai/aiNames.js';
 import { Personalities } from './ai/personalities.js';
 import { startPhaseTimer, clearPhaseTimer, PhaseDurations } from './phaseTimer.js';
 import { resolveTolls, resolveActions, resolveAccusation, checkGameEnd } from './resolution.js';
 import { scheduleAiActions } from './ai/decisionEngine.js';
+import { clearSuspicion, updateSuspicion } from './ai/suspicionTracker.js';
+import { registerResolver } from './resolverRegistry.js';
 
 const DEFAULT_DOOM_THRESHOLD = 15;
 const DEFAULT_MAX_ROUNDS = 10;
 const DEFAULT_STARTING_SUPPLIES = 3;
+const DEFAULT_STARTING_SUPPLIES_MAX = 5;
 // Probability that a phantom exists (80% chance)
 const PHANTOM_PROBABILITY = 0.8;
 
@@ -79,6 +82,7 @@ export async function startGame(roomId, totalPlayers) {
     tollSubmissions: [],
     actionSubmissions: [],
     revealedActions: null,
+    lookoutReveal: null,
     accusation: null,
     result: null,
     endReason: null,
@@ -126,7 +130,7 @@ export async function advancePhase(gameId) {
 
   if (nextIndex >= phaseOrder.length) {
     // Round complete — check game end or start new round
-    await handleRoundEnd(gameId);
+    await startNextRound(gameId);
     return;
   }
 
@@ -244,6 +248,9 @@ export async function resolveTollPhase(gameId) {
     $set: { ...updates, updatedAt: new Date() },
   });
 
+  // Update AI suspicion based on toll choices
+  updateSuspicionFromTolls(game, allSubmissions);
+
   await appendLog(gameId, game.currentRound, GamePhase.TOLL, 'tolls_resolved', {
     submissions: allSubmissions.length,
   });
@@ -265,6 +272,7 @@ async function runActionPhase(gameId) {
     $set: {
       actionSubmissions: [],
       revealedActions: null,
+      lookoutReveal: null,
       updatedAt: new Date(),
     },
   });
@@ -303,6 +311,26 @@ export async function resolveActionPhase(gameId) {
 
   const allSubmissions = [...game.actionSubmissions, ...defaultSubmissions];
 
+  // Lookout passive: reveal one other player's action early
+  let lookoutReveal = null;
+  const lookout = game.players.find(p => p.role === 'lookout');
+  if (lookout && lookout.hasNextAction) {
+    const hasNoLookout = lookout.curses.some(c => c.effect === 'noLookout');
+    if (!hasNoLookout) {
+      const otherSubmissions = allSubmissions.filter(s => s.seatIndex !== lookout.seatIndex);
+      if (otherSubmissions.length > 0) {
+        const picked = otherSubmissions[Math.floor(Math.random() * otherSubmissions.length)];
+        const pickedPlayer = game.players.find(p => p.seatIndex === picked.seatIndex);
+        lookoutReveal = {
+          seatIndex: picked.seatIndex,
+          displayName: pickedPlayer?.displayName || 'Unknown',
+          role: pickedPlayer?.role || 'unknown',
+          threatId: picked.threatId,
+        };
+      }
+    }
+  }
+
   // Reveal all actions simultaneously
   const revealedActions = allSubmissions.map(sub => {
     const player = game.players.find(p => p.seatIndex === sub.seatIndex);
@@ -318,11 +346,15 @@ export async function resolveActionPhase(gameId) {
 
   await Games.updateAsync(gameId, {
     $set: {
+      lookoutReveal,
       revealedActions,
       ...updates,
       updatedAt: new Date(),
     },
   });
+
+  // Update AI suspicion based on action choices
+  updateSuspicionFromActions(game, allSubmissions);
 
   await appendLog(gameId, game.currentRound, GamePhase.ACTION, 'actions_resolved', {
     actions: revealedActions,
@@ -434,8 +466,6 @@ async function runRoundEndPhase(gameId) {
   });
 }
 
-const DEFAULT_STARTING_SUPPLIES_MAX = 5;
-
 // Start a new round
 async function startNextRound(gameId) {
   const game = await Games.findOneAsync(gameId);
@@ -500,6 +530,54 @@ async function finishGame(gameId, result, reason) {
     result,
     reason,
   });
+
+  // Clean up in-memory suspicion state
+  clearSuspicion(gameId);
+}
+
+// Update AI suspicion scores based on toll results
+function updateSuspicionFromTolls(game, submissions) {
+  const aiPlayers = game.players.filter(p => p.isAI);
+  for (const ai of aiPlayers) {
+    for (const sub of submissions) {
+      if (sub.seatIndex === ai.seatIndex) {
+        continue;
+      }
+      const eventType = sub.choice === 'doom' ? 'toll_doom'
+        : sub.choice === 'supply' ? 'toll_supply'
+        : 'toll_curse';
+      updateSuspicion(game._id, ai.seatIndex, sub.seatIndex, eventType);
+    }
+  }
+}
+
+// Update AI suspicion scores based on action results
+function updateSuspicionFromActions(game, submissions) {
+  const aiPlayers = game.players.filter(p => p.isAI);
+  for (const ai of aiPlayers) {
+    for (const sub of submissions) {
+      if (sub.seatIndex === ai.seatIndex) {
+        continue;
+      }
+      const player = game.players.find(p => p.seatIndex === sub.seatIndex);
+      if (!player) {
+        continue;
+      }
+      const role = Object.values(Roles).find(r => r.id === player.role);
+      if (!role) {
+        continue;
+      }
+      // Check if the player targeted their best threat
+      const targetedThreat = game.activeThreats.find(t => t.id === sub.threatId);
+      if (!targetedThreat) {
+        continue;
+      }
+      const targetedStrength = getActionStrength(role, targetedThreat.type);
+      const bestStrength = Math.max(...game.activeThreats.map(t => getActionStrength(role, t.type)));
+      const eventType = targetedStrength >= bestStrength ? 'action_optimal' : 'action_suboptimal';
+      updateSuspicion(game._id, ai.seatIndex, sub.seatIndex, eventType);
+    }
+  }
 }
 
 // Append to game log
@@ -513,3 +591,8 @@ async function appendLog(gameId, round, phase, type, data) {
     createdAt: new Date(),
   });
 }
+
+// Register resolve functions so decisionEngine can call them without circular imports
+registerResolver('resolveTollPhase', resolveTollPhase);
+registerResolver('resolveActionPhase', resolveActionPhase);
+registerResolver('resolveAccusationPhase', resolveAccusationPhase);

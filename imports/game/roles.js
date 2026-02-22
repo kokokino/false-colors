@@ -29,10 +29,10 @@ export const Roles = {
   QUARTERMASTER: {
     id: 'quartermaster',
     name: 'Quartermaster',
-    specialty: [],
-    specialtyStrength: 2,
+    specialty: ['hull_breach'],
+    specialtyStrength: 3,
     offStrength: 2,
-    description: 'Jack of all trades — strength 2 against anything.',
+    description: 'Expert at hull repairs, solid against any threat.',
   },
   LOOKOUT: {
     id: 'lookout',
