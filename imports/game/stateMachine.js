@@ -7,7 +7,7 @@ import { shuffleRoster } from './ai/crewRoster.js';
 import { startPhaseTimer, clearPhaseTimer, getPhaseDuration } from './phaseTimer.js';
 import { resolveTolls, resolveActions, resolveAccusation, checkGameEnd } from './resolution.js';
 import { scheduleAiActions } from './ai/decisionEngine.js';
-import { clearSuspicion, decaySuspicion, updateSuspicion } from './ai/suspicionTracker.js';
+import { clearSuspicion, decaySuspicion, updateSuspicion, resetSuspicionOnReveal } from './ai/suspicionTracker.js';
 import { registerResolver } from './resolverRegistry.js';
 
 // In-memory lock to prevent concurrent phase resolution (race between timer, AI, and human callers)
@@ -370,13 +370,9 @@ export async function resolveTollPhase(gameId) {
 async function runDiscussionPhase(gameId) {
   const game = await Games.findOneAsync(gameId);
   // Schedule AI chat messages with human-like delays
-  // (reads game doc for lastNourishTarget / phantomJustRevealed flags before we clear them)
+  // Flags (lastNourishTarget, phantomJustRevealed) are cleared at the start of ACTION phase
+  // so that AI setTimeout callbacks can still read them during discussion.
   scheduleAiActions(gameId, 'discussion');
-
-  // Clear one-shot discussion trigger flags after AI scheduling reads them
-  await Games.updateAsync(gameId, {
-    $unset: { lastNourishTarget: '', phantomJustRevealed: '' },
-  });
 
   startPhaseTimer(gameId, 'discussion', advancePhase, game?.expertMode);
 }
@@ -391,6 +387,7 @@ async function runActionPhase(gameId) {
       lookoutReveal: null,
       updatedAt: new Date(),
     },
+    $unset: { lastNourishTarget: '', phantomJustRevealed: '' },
   });
 
   // Schedule AI action submissions
@@ -597,6 +594,20 @@ export async function resolveAccusationPhase(gameId) {
       correct: result.correct,
     });
 
+    // On correct accusation, update suspicion: max phantom, reward accuser, reset stale scores
+    if (result.correct) {
+      // Reset all suspicion scores — phantom is confirmed, stale data is irrelevant
+      resetSuspicionOnReveal(game._id, game.accusation.targetSeat);
+
+      // Reduce suspicion of the accuser (good detective work)
+      const aiPlayers = game.players.filter(p => p.isAI);
+      for (const ai of aiPlayers) {
+        if (ai.seatIndex !== game.accusation.accuserSeat) {
+          updateSuspicion(game._id, ai.seatIndex, game.accusation.accuserSeat, 'accused_phantom');
+        }
+      }
+    }
+
     // On acquittal, reduce suspicion of the target and increase suspicion of the accuser
     if (!result.correct) {
       const aiPlayers = game.players.filter(p => p.isAI);
@@ -691,9 +702,9 @@ async function runRoundEndPhase(gameId) {
     return;
   }
 
-  // Schedule AI Cook nourish during round_end
+  // Schedule AI Cook nourish during round_end (skip if Cook is a revealed phantom)
   const cook = freshGame.players.find(p => p.role === 'cook');
-  if (cook && (cook.mealsRemaining || 0) > 0) {
+  if (cook && (cook.mealsRemaining || 0) > 0 && !cook.phantomRevealed) {
     scheduleAiActions(gameId, 'cook_nourish');
   }
 
@@ -718,7 +729,7 @@ export async function applyCookNourish(gameId, cookSeatIndex, targetSeatIndex) {
     }
 
     const cook = game.players.find(p => p.seatIndex === cookSeatIndex && p.role === 'cook');
-    if (!cook || (cook.mealsRemaining || 0) <= 0) {
+    if (!cook || (cook.mealsRemaining || 0) <= 0 || cook.phantomRevealed) {
       return false;
     }
 
@@ -916,6 +927,11 @@ function updateSuspicionFromActions(game, submissions) {
       const nearCompletion = targetedThreat.threshold > 0 && (targetedThreat.progress / targetedThreat.threshold) > 0.6;
       const eventType = (targetedStrength >= bestStrength || nearCompletion) ? 'action_optimal' : 'action_suboptimal';
       updateSuspicion(game._id, ai.seatIndex, sub.seatIndex, eventType);
+
+      // Reward for targeting escalated threats that match specialty
+      if (targetedThreat.escalated && targetedStrength >= bestStrength) {
+        updateSuspicion(game._id, ai.seatIndex, sub.seatIndex, 'action_targeted_escalated');
+      }
 
       // Extra suspicion for ignoring escalated threats when you're the specialist
       if (!targetedThreat.escalated) {

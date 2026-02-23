@@ -17,7 +17,7 @@ export const RoundEndSummary = {
 
     const cook = game.players.find(p => p.role === 'cook');
     const isCook = myPlayer && cook && myPlayer.seatIndex === cook.seatIndex;
-    const hasMeals = cook && (cook.mealsRemaining || 0) > 0;
+    const hasMeals = cook && (cook.mealsRemaining || 0) > 0 && !cook.phantomRevealed;
 
     return m('div.phase-content.round-end-summary', [
       m('h3', `Round ${game.currentRound} Complete`),

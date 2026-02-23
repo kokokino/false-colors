@@ -38,7 +38,9 @@ export function updateSuspicion(gameId, aiSeatIndex, targetSeat, eventType) {
     action_optimal: -0.1,   // Good targeting reduces suspicion
     action_suboptimal: 0.15, // Bad targeting raises suspicion
     action_ignored_escalated: 0.2, // Ignoring escalated threat as specialist
+    action_targeted_escalated: -0.15, // Prioritizing escalated threat is reassuring
     accused_loyal: 0.2,     // Accusing a loyal player is very suspicious
+    accused_phantom: -0.2,  // Correctly accusing the phantom is reassuring
     defended_self_well: -0.1,
     voted_guilty_on_acquitted: 0.1,
     cook_nourish_wasteful: 0.15,   // Nourishing high-resolve player when someone is at 0
@@ -47,6 +49,30 @@ export function updateSuspicion(gameId, aiSeatIndex, targetSeat, eventType) {
 
   const delta = deltas[eventType] || 0;
   state[aiSeatIndex][targetSeat] = Math.max(0, Math.min(1, state[aiSeatIndex][targetSeat] + delta));
+}
+
+// Directly set suspicion score for a specific target (e.g. confirmed phantom = 1.0)
+export function setSuspicion(gameId, aiSeatIndex, targetSeat, value) {
+  const state = getState(gameId);
+  if (!state[aiSeatIndex] || state[aiSeatIndex][targetSeat] === undefined) {
+    return;
+  }
+  state[aiSeatIndex][targetSeat] = Math.max(0, Math.min(1, value));
+}
+
+// Reset suspicion after phantom reveal: max out revealed phantom, heavily decay everyone else
+export function resetSuspicionOnReveal(gameId, revealedSeat) {
+  const state = getState(gameId);
+  for (const aiSeat of Object.keys(state)) {
+    for (const targetSeat of Object.keys(state[aiSeat])) {
+      if (parseInt(targetSeat, 10) === revealedSeat) {
+        state[aiSeat][targetSeat] = 1.0;
+      } else {
+        // Heavy decay — stale suspicion from before reveal is largely irrelevant
+        state[aiSeat][targetSeat] *= 0.3;
+      }
+    }
+  }
 }
 
 // Get suspicion score for a specific target

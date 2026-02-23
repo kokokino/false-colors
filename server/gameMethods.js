@@ -404,6 +404,10 @@ Meteor.methods({
       throw new Meteor.Error('not-cook', 'Only the Cook can nourish');
     }
 
+    if (cook.phantomRevealed) {
+      throw new Meteor.Error('not-authorized', 'Revealed phantom cannot nourish');
+    }
+
     if ((cook.mealsRemaining || 0) <= 0) {
       throw new Meteor.Error('no-meals', 'No meals remaining');
     }
