@@ -727,13 +727,19 @@ export async function applyCookNourish(gameId, cookSeatIndex, targetSeatIndex) {
       return { ...p };
     });
 
-    await Games.updateAsync(gameId, {
-      $set: {
-        players: updatedPlayers,
-        lastNourishTarget: target.displayName,
-        updatedAt: new Date(),
-      },
-    });
+    const updated = await Games.updateAsync(
+      { _id: gameId, currentPhase: GamePhase.ROUND_END },
+      {
+        $set: {
+          players: updatedPlayers,
+          lastNourishTarget: target.displayName,
+          updatedAt: new Date(),
+        },
+      }
+    );
+    if (updated === 0) {
+      return false;
+    }
 
     await appendLog(gameId, game.currentRound, GamePhase.ROUND_END, 'cook_nourish', {
       cookSeat: cookSeatIndex,

@@ -275,7 +275,7 @@ function scheduleAiDiscussion(gameId, aiPlayer, game) {
           // Comment on cook nourish, actions, or doom
           if (currentGame.lastNourishTarget && Math.random() < 0.6) {
             trigger = 'cookObservation';
-          } else if (currentGame.revealedActions && Math.random() < 0.5) {
+          } else if (currentGame.revealedActions?.length > 0 && Math.random() < 0.5) {
             trigger = 'actionObservation';
           } else if (doomHigh && Math.random() < 0.4) {
             trigger = 'doomWarning';

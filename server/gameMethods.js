@@ -378,6 +378,10 @@ Meteor.methods({
     check(gameId, String);
     check(targetSeatIndex, Match.Integer);
 
+    if (targetSeatIndex < 0 || targetSeatIndex >= 6) {
+      throw new Meteor.Error('invalid-target', 'Invalid target seat');
+    }
+
     if (!this.userId) {
       throw new Meteor.Error('not-authorized', 'You must be logged in');
     }

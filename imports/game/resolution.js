@@ -100,6 +100,7 @@ export function resolveActions(game, submissions) {
 
     const threat = updatedThreats.find(t => t.id === sub.threatId);
     if (!threat) {
+      console.warn(`[resolveActions] Unknown threat "${sub.threatId}" for seat ${sub.seatIndex}, skipping`);
       continue;
     }
 
@@ -183,17 +184,14 @@ export function resolveAccusation(game, accusation) {
 
   if (!correct) {
     // Wrong accusation — accuser loses next action + 3 doom + 1 skull
-    // Unless target has phantom_whisper curse (accusationPenalty), which protects them
+    // Unless target has phantom_whisper curse (accusationPenalty): accuser keeps their action
     const hasPhantomWhisper = target && target.curses.some(c => c.effect === 'accusationPenalty');
     const updatedPlayers = game.players.map(p => {
-      if (p.seatIndex === accuserSeat) {
+      if (p.seatIndex === accuserSeat && !hasPhantomWhisper) {
         return { ...p, hasNextAction: false };
       }
       return { ...p };
     });
-    if (hasPhantomWhisper) {
-      return { correct: false, convicted: true, updatedPlayers, doomChange: 3, skull: { round: game.currentRound, reason: 'false_accusation', description: 'False accusation' } };
-    }
     return {
       correct: false,
       convicted: true,
