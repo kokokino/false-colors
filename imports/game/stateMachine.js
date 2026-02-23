@@ -145,7 +145,8 @@ export async function startGame(roomId, totalPlayers) {
 }
 
 // Central phase advancement — the heart of the state machine
-export async function advancePhase(gameId) {
+// expectedPhase: if provided, bail out if game is no longer in this phase (prevents sequential double-advance)
+export async function advancePhase(gameId, expectedPhase) {
   const lockKey = `advance_${gameId}`;
   if (resolveLocks.get(lockKey)) {
     return;
@@ -154,6 +155,9 @@ export async function advancePhase(gameId) {
   try {
     const game = await Games.findOneAsync(gameId);
     if (!game || game.currentPhase === GamePhase.FINISHED) {
+      return;
+    }
+    if (expectedPhase && game.currentPhase !== expectedPhase) {
       return;
     }
 
@@ -298,7 +302,7 @@ async function runThreatPhase(gameId) {
   }
 
   // Auto-advance after display time
-  startPhaseTimer(gameId, 'threat', advancePhase, game.expertMode);
+  startPhaseTimer(gameId, 'threat', (gId) => advancePhase(gId, GamePhase.THREAT), game.expertMode);
 }
 
 // TOLL PHASE — every player must choose a harmful action
@@ -360,7 +364,7 @@ export async function resolveTollPhase(gameId) {
       ...updates.tollAggregate,
     });
 
-    await advancePhase(gameId);
+    await advancePhase(gameId, GamePhase.TOLL);
   } finally {
     resolveLocks.delete(lockKey);
   }
@@ -374,7 +378,7 @@ async function runDiscussionPhase(gameId) {
   // so that AI setTimeout callbacks can still read them during discussion.
   scheduleAiActions(gameId, 'discussion');
 
-  startPhaseTimer(gameId, 'discussion', advancePhase, game?.expertMode);
+  startPhaseTimer(gameId, 'discussion', (gId) => advancePhase(gId, GamePhase.DISCUSSION), game?.expertMode);
 }
 
 // ACTION PHASE — each player assigns their action to a threat
@@ -507,7 +511,7 @@ export async function resolveActionPhase(gameId) {
       }),
     });
 
-    await advancePhase(gameId);
+    await advancePhase(gameId, GamePhase.ACTION);
   } finally {
     resolveLocks.delete(lockKey);
   }
@@ -527,12 +531,12 @@ async function runAccusationPhase(gameId) {
     // If no accusation was made, just advance
     const g = await Games.findOneAsync(gId);
     if (g && !g.accusation) {
-      await advancePhase(gId);
+      await advancePhase(gId, GamePhase.ACCUSATION);
     } else if (g && g.accusation && !g.accusation.resolved) {
       // Resolve any pending accusation
       await resolveAccusationPhase(gId);
     } else {
-      await advancePhase(gId);
+      await advancePhase(gId, GamePhase.ACCUSATION);
     }
   }, game?.expertMode);
 }
@@ -547,7 +551,7 @@ export async function resolveAccusationPhase(gameId) {
   try {
     const game = await Games.findOneAsync(gameId);
     if (!game || !game.accusation) {
-      await advancePhase(gameId);
+      await advancePhase(gameId, GamePhase.ACCUSATION);
       return;
     }
 
@@ -645,7 +649,7 @@ export async function resolveAccusationPhase(gameId) {
     }
 
     // Phantom caught — game continues now (no longer ends)
-    await advancePhase(gameId);
+    await advancePhase(gameId, GamePhase.ACCUSATION);
   } finally {
     resolveLocks.delete(lockKey);
   }
@@ -710,7 +714,7 @@ async function runRoundEndPhase(gameId) {
 
   // Timer to advance
   startPhaseTimer(gameId, 'round_end', async (gId) => {
-    await startNextRound(gId);
+    await startNextRound(gId, GamePhase.ROUND_END);
   }, game.expertMode);
 }
 
@@ -771,10 +775,18 @@ export async function applyCookNourish(gameId, cookSeatIndex, targetSeatIndex) {
     // Update AI suspicion for Cook nourish choice (works for both human and AI cooks)
     const nonRevealed = game.players.filter(p => !p.phantomRevealed && p.seatIndex !== cookSeatIndex);
     const desperate = nonRevealed.filter(p => p.resolve === 0);
+    const aiObservers = game.players.filter(p => p.isAI && p.seatIndex !== cookSeatIndex);
     if (desperate.length > 0 && target.resolve > 0) {
-      const aiObservers = game.players.filter(p => p.isAI && p.seatIndex !== cookSeatIndex);
       for (const ai of aiObservers) {
         updateSuspicion(gameId, ai.seatIndex, cookSeatIndex, 'cook_nourish_wasteful');
+      }
+    } else {
+      // Optimal nourish: target has the lowest resolve among non-revealed players
+      const lowestResolve = Math.min(...nonRevealed.map(p => p.resolve));
+      if (target.resolve <= lowestResolve) {
+        for (const ai of aiObservers) {
+          updateSuspicion(gameId, ai.seatIndex, cookSeatIndex, 'cook_nourish_optimal');
+        }
       }
     }
 
@@ -784,10 +796,13 @@ export async function applyCookNourish(gameId, cookSeatIndex, targetSeatIndex) {
   }
 }
 
-// Start a new round
-async function startNextRound(gameId) {
+// Start a new round — expectedPhase guard prevents double-advance from timer + readyToAdvance
+async function startNextRound(gameId, expectedPhase) {
   const game = await Games.findOneAsync(gameId);
   if (!game || game.currentPhase === GamePhase.FINISHED) {
+    return;
+  }
+  if (expectedPhase && game.currentPhase !== expectedPhase) {
     return;
   }
 
@@ -872,7 +887,7 @@ export async function checkReadyToAdvance(gameId) {
     if (game.currentPhase === GamePhase.ACCUSATION && game.accusation && !game.accusation.resolved) {
       await resolveAccusationPhase(gameId);
     } else {
-      await advancePhase(gameId);
+      await advancePhase(gameId, game.currentPhase);
     }
   }
 }

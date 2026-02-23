@@ -272,9 +272,12 @@ function scheduleAiDiscussion(gameId, aiPlayer, game) {
             trigger = 'tollReaction';
           }
         } else if (i === 1) {
-          // Comment on cook nourish, actions, or doom
+          // Comment on cook nourish, actions, escalated threats, or doom
+          const hasEscalated = currentGame.activeThreats.some(t => t.escalated);
           if (currentGame.lastNourishTarget && Math.random() < 0.6) {
             trigger = 'cookObservation';
+          } else if (hasEscalated && Math.random() < 0.5) {
+            trigger = 'escalatedThreatObservation';
           } else if (currentGame.revealedActions?.length > 0 && Math.random() < 0.5) {
             trigger = 'actionObservation';
           } else if (doomHigh && Math.random() < 0.4) {

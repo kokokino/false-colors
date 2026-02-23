@@ -6,6 +6,7 @@ import { Meteor } from 'meteor/meteor';
 export const RoundEndSummary = {
   oninit() {
     this.nourished = false;
+    this.readySubmitted = false;
     this.error = null;
   },
 
@@ -42,7 +43,9 @@ export const RoundEndSummary = {
 
       this.error ? m('p.error-message', this.error) : null,
 
-      m('p.muted', 'Next round starting shortly...'),
+      !this.readySubmitted
+        ? m('button.outline', { onclick: () => this.markReady(game._id) }, 'Ready to move on')
+        : m('p.muted', 'Waiting for other crew members...'),
     ]);
   },
 
@@ -61,6 +64,16 @@ export const RoundEndSummary = {
         ])
       )),
     ]);
+  },
+
+  async markReady(gameId) {
+    try {
+      await Meteor.callAsync('game.readyToAdvance', gameId);
+      this.readySubmitted = true;
+    } catch (error) {
+      this.error = error.reason || error.message;
+    }
+    m.redraw();
   },
 
   async submitNourish(gameId, targetSeatIndex) {

@@ -111,12 +111,21 @@ export const AccusationPanel = {
 
   renderResult(game, accusation) {
     const target = game.players.find(p => p.seatIndex === accusation.targetSeat);
+    const targetName = target?.displayName || 'The accused';
+
+    let message;
+    if (!accusation.convicted) {
+      message = `The crew voted to acquit ${targetName}. No penalty applied.`;
+    } else if (accusation.correct) {
+      message = `${targetName} was indeed the phantom! They are revealed but remain aboard. Doom reduced by 3.`;
+    } else {
+      message = `${targetName} was loyal. +3 doom added, +1 skull. The accuser loses their next action.`;
+    }
+
     return m('div.phase-content.accusation-panel', [
       m('h3', 'Accusation Result'),
-      m('p', accusation.correct
-        ? `${target?.displayName || 'The accused'} was indeed the phantom! They are revealed but remain aboard. Doom reduced by 3.`
-        : `${target?.displayName || 'The accused'} was loyal. +3 doom added. The accuser loses their next action.`
-      ),
+      accusation.correct ? m('mark', 'PHANTOM REVEALED') : null,
+      m('p', message),
       !this.readySubmitted
         ? m('button.outline', { onclick: () => this.markReady(game._id) }, 'Ready to move on')
         : m('p.muted', 'Waiting for other crew members...'),

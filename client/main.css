@@ -437,6 +437,15 @@ footer {
   margin-bottom: 0;
 }
 
+/* Lookout intel */
+.lookout-intel {
+  background: var(--pico-card-background-color);
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: var(--pico-border-radius);
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+}
+
 /* Round end summary */
 .summary-stats {
   display: flex;

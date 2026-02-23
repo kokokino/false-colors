@@ -132,10 +132,15 @@ export function buildSlotData(game, aiPlayer) {
   // Find interesting action observation
   const interestingAction = findInterestingAction(game);
 
+  // Find the first escalated threat for dialogue slots
+  const escalatedThreat = game.activeThreats.find(t => t.escalated);
+
   return {
     threat_name: highestThreat?.name || 'the unknown threat',
     threshold: highestThreat?.threshold?.toString() || '?',
     doom_per_round: highestThreat?.doomPerRound?.toString() || '?',
+    escalated_threat_name: escalatedThreat?.name || 'the escalated threat',
+    escalated_doom_per_round: escalatedThreat?.doomPerRound?.toString() || '?',
     player_name: pickRelevantPlayer(game, aiPlayer),
     rounds_left: roundsLeft.toString(),
     doom_level: game.doomLevel.toString(),

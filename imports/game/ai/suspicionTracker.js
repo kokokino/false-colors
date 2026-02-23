@@ -43,6 +43,7 @@ export function updateSuspicion(gameId, aiSeatIndex, targetSeat, eventType) {
     accused_phantom: -0.2,  // Correctly accusing the phantom is reassuring
     defended_self_well: -0.1,
     voted_guilty_on_acquitted: 0.1,
+    cook_nourish_optimal: -0.1,    // Nourishing lowest-resolve player is reassuring
     cook_nourish_wasteful: 0.15,   // Nourishing high-resolve player when someone is at 0
     cook_nourish_skipped: 0.2,     // Skipping a meal when someone is desperate
   };

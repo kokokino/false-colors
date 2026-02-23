@@ -354,7 +354,7 @@ Meteor.methods({
       throw new Meteor.Error('not-found', 'Game not found');
     }
 
-    const allowedPhases = [GamePhase.DISCUSSION, GamePhase.ACCUSATION];
+    const allowedPhases = [GamePhase.DISCUSSION, GamePhase.ACCUSATION, GamePhase.ROUND_END];
     if (!allowedPhases.includes(game.currentPhase)) {
       throw new Meteor.Error('wrong-phase', 'Cannot ready in this phase');
     }

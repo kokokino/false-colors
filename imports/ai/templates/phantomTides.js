@@ -69,6 +69,39 @@ const templates = {
     ],
   },
 
+  escalatedThreatObservation: {
+    terse: [
+      'That threat\'s escalated. Focus.',
+      '{escalated_threat_name} is worse now. Prioritize it.',
+      'Escalated threat. No more delays.',
+    ],
+    worried: [
+      'It\'s getting worse! We can\'t ignore {escalated_threat_name} any longer!',
+      '{escalated_threat_name} has escalated... I\'m really scared now.',
+      'That escalation is bad. {escalated_doom_per_round} doom per round!',
+    ],
+    cheerful: [
+      '{escalated_threat_name} escalated, but we can handle it! Let\'s focus up!',
+      'Okay, {escalated_threat_name} got tougher. Time to bring our A-game!',
+      'Escalated threat? Challenge accepted!',
+    ],
+    analytical: [
+      'The escalated threat {escalated_threat_name} is now adding {escalated_doom_per_round} doom per round. Prioritize it.',
+      '{escalated_threat_name} has worsened. At {escalated_doom_per_round} doom/round, it\'s our top priority.',
+      'Escalation analysis: {escalated_threat_name} now costs {escalated_doom_per_round} doom. Specialists should target it.',
+    ],
+    bold: [
+      '{escalated_threat_name} thinks it can scare us by escalating? Wrong!',
+      'Escalated or not, {escalated_threat_name} is going down!',
+      'Bring it on, {escalated_threat_name}! We\'ll smash you harder!',
+    ],
+    solemn: [
+      '{escalated_threat_name} grows in power. The sea shows no mercy.',
+      'The escalation of {escalated_threat_name} darkens our path. We must act.',
+      'As {escalated_threat_name} worsens, so too must our resolve strengthen.',
+    ],
+  },
+
   tollReaction: {
     terse: [
       'Paid my toll. Move on.',
