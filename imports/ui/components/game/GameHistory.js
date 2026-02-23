@@ -4,6 +4,10 @@ import m from 'mithril';
 // Accumulates round-by-round data: tolls, actions, threats, scoring, accusations, Cook nourish
 // Attrs: logs (array), game
 export const GameHistory = {
+  oninit() {
+    this.isOpen = false;
+  },
+
   view(vnode) {
     const logs = vnode.attrs.logs || [];
     const game = vnode.attrs.game;
@@ -23,8 +27,13 @@ export const GameHistory = {
 
     const rounds = Object.keys(roundMap).sort((a, b) => Number(b) - Number(a));
 
-    return m('details.game-history', { open: false }, [
-      m('summary', 'Voyage Journal'),
+    return m('details.game-history', { open: this.isOpen }, [
+      m('summary', {
+        onclick: (e) => {
+          e.preventDefault();
+          this.isOpen = !this.isOpen;
+        },
+      }, 'Voyage Journal'),
       m('div.history-entries', rounds.map(round =>
         m('div.history-round', { key: round }, [
           m('h4', `Round ${round}`),
@@ -54,6 +63,9 @@ function formatLogEntry(log) {
     case 'threats_drawn':
       return `Threats: ${(data.newThreats || []).join(', ')} (+${data.doomAdded || 0} doom)`;
     case 'tolls_resolved':
+      if (data.resolveCount !== undefined) {
+        return `Tolls: ${data.resolveCount} resolve, ${data.doomCount} doom, ${data.curseCount} curse`;
+      }
       return `Tolls resolved (${data.submissions || 0} submissions)`;
     case 'actions_resolved':
       if (data.actions && data.actions.length > 0) {

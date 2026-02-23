@@ -117,6 +117,9 @@ export const AccusationPanel = {
         ? `${target?.displayName || 'The accused'} was indeed the phantom! They are revealed but remain aboard. Doom reduced by 3.`
         : `${target?.displayName || 'The accused'} was loyal. +3 doom added. The accuser loses their next action.`
       ),
+      !this.readySubmitted
+        ? m('button.outline', { onclick: () => this.markReady(game._id) }, 'Ready to move on')
+        : m('p.muted', 'Waiting for other crew members...'),
     ]);
   },
 

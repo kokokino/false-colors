@@ -70,6 +70,9 @@ export function drawThreats(deck, round) {
       id: Random.id(),
       progress: 0,
       roundAdded: round,
+      totalDoomCaused: 0,
+      escalated: false,
+      skullAwarded: false,
     });
   }
   return { drawn, remaining: deck };

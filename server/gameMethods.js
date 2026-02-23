@@ -378,10 +378,6 @@ Meteor.methods({
     check(gameId, String);
     check(targetSeatIndex, Match.Integer);
 
-    if (targetSeatIndex < 0 || targetSeatIndex >= 6) {
-      throw new Meteor.Error('invalid-target', 'Invalid target seat');
-    }
-
     if (!this.userId) {
       throw new Meteor.Error('not-authorized', 'You must be logged in');
     }
@@ -389,6 +385,10 @@ Meteor.methods({
     const game = await Games.findOneAsync(gameId);
     if (!game) {
       throw new Meteor.Error('not-found', 'Game not found');
+    }
+
+    if (targetSeatIndex < 0 || targetSeatIndex >= game.players.length) {
+      throw new Meteor.Error('invalid-target', 'Invalid target seat');
     }
 
     if (game.currentPhase !== GamePhase.ROUND_END) {

@@ -146,62 +146,71 @@ export async function startGame(roomId, totalPlayers) {
 
 // Central phase advancement — the heart of the state machine
 export async function advancePhase(gameId) {
-  const game = await Games.findOneAsync(gameId);
-  if (!game || game.currentPhase === GamePhase.FINISHED) {
+  const lockKey = `advance_${gameId}`;
+  if (resolveLocks.get(lockKey)) {
     return;
   }
+  resolveLocks.set(lockKey, true);
+  try {
+    const game = await Games.findOneAsync(gameId);
+    if (!game || game.currentPhase === GamePhase.FINISHED) {
+      return;
+    }
 
-  clearPhaseTimer(gameId);
+    clearPhaseTimer(gameId);
 
-  const phaseOrder = [
-    GamePhase.THREAT,
-    GamePhase.TOLL,
-    GamePhase.DISCUSSION,
-    GamePhase.ACTION,
-    GamePhase.ACCUSATION,
-    GamePhase.ROUND_END,
-  ];
+    const phaseOrder = [
+      GamePhase.THREAT,
+      GamePhase.TOLL,
+      GamePhase.DISCUSSION,
+      GamePhase.ACTION,
+      GamePhase.ACCUSATION,
+      GamePhase.ROUND_END,
+    ];
 
-  const currentIndex = phaseOrder.indexOf(game.currentPhase);
-  const nextIndex = currentIndex + 1;
+    const currentIndex = phaseOrder.indexOf(game.currentPhase);
+    const nextIndex = currentIndex + 1;
 
-  if (nextIndex >= phaseOrder.length) {
-    // Round complete — check game end or start new round
-    await startNextRound(gameId);
-    return;
-  }
+    if (nextIndex >= phaseOrder.length) {
+      // Round complete — check game end or start new round
+      await startNextRound(gameId);
+      return;
+    }
 
-  const nextPhase = phaseOrder[nextIndex];
-  const now = new Date();
-  const duration = getPhaseDuration(nextPhase, game.expertMode);
+    const nextPhase = phaseOrder[nextIndex];
+    const now = new Date();
+    const duration = getPhaseDuration(nextPhase, game.expertMode);
 
-  await Games.updateAsync(gameId, {
-    $set: {
-      currentPhase: nextPhase,
-      phaseStartedAt: now,
-      phaseDeadline: new Date(now.getTime() + duration),
-      readyPlayers: [],
-      updatedAt: now,
-    },
-  });
+    await Games.updateAsync(gameId, {
+      $set: {
+        currentPhase: nextPhase,
+        phaseStartedAt: now,
+        phaseDeadline: new Date(now.getTime() + duration),
+        readyPlayers: [],
+        updatedAt: now,
+      },
+    });
 
-  // Execute phase logic
-  switch (nextPhase) {
-    case GamePhase.TOLL:
-      await runTollPhase(gameId);
-      break;
-    case GamePhase.DISCUSSION:
-      await runDiscussionPhase(gameId);
-      break;
-    case GamePhase.ACTION:
-      await runActionPhase(gameId);
-      break;
-    case GamePhase.ACCUSATION:
-      await runAccusationPhase(gameId);
-      break;
-    case GamePhase.ROUND_END:
-      await runRoundEndPhase(gameId);
-      break;
+    // Execute phase logic
+    switch (nextPhase) {
+      case GamePhase.TOLL:
+        await runTollPhase(gameId);
+        break;
+      case GamePhase.DISCUSSION:
+        await runDiscussionPhase(gameId);
+        break;
+      case GamePhase.ACTION:
+        await runActionPhase(gameId);
+        break;
+      case GamePhase.ACCUSATION:
+        await runAccusationPhase(gameId);
+        break;
+      case GamePhase.ROUND_END:
+        await runRoundEndPhase(gameId);
+        break;
+    }
+  } finally {
+    resolveLocks.delete(lockKey);
   }
 }
 
@@ -259,7 +268,7 @@ async function runThreatPhase(gameId) {
     newSkulls.push({ round: game.currentRound, reason: 'doom_rising', description: 'Doom rising' });
   }
   if (oldDoom < 10 && newDoom >= 10) {
-    newSkulls.push({ round: game.currentRound, reason: 'doom_rising', description: 'Doom rising' });
+    newSkulls.push({ round: game.currentRound, reason: 'doom_critical', description: 'Doom critical' });
   }
 
   const updateOp = {
@@ -348,6 +357,7 @@ export async function resolveTollPhase(gameId) {
 
     await appendLog(gameId, game.currentRound, GamePhase.TOLL, 'tolls_resolved', {
       submissions: allSubmissions.length,
+      ...updates.tollAggregate,
     });
 
     await advancePhase(gameId);
