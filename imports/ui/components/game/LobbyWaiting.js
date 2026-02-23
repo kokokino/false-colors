@@ -35,6 +35,18 @@ export const LobbyWaiting = {
 
       m('p.muted', 'AI crew members will fill empty seats when the countdown ends.'),
 
+      m('label', [
+        m('input', {
+          type: 'checkbox',
+          role: 'switch',
+          checked: Meteor.user()?.isExpertPlayer || false,
+          onchange(e) {
+            Meteor.callAsync('user.setExpertMode', e.target.checked);
+          },
+        }),
+        ' Expert Mode (shorter timers, no guide tooltips)',
+      ]),
+
       m('button.secondary.outline', {
         onclick() {
           Meteor.callAsync('rooms.leave', room._id).then(() => {

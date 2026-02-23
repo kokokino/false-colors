@@ -677,11 +677,11 @@ describe("false_colors", function () {
         clearSuspicion(gameId);
       });
 
-      it("updateSuspicion with toll_supply decreases (clamped to 0)", async function () {
+      it("updateSuspicion with toll_resolve decreases (clamped to 0)", async function () {
         const { initSuspicion, updateSuspicion, getSuspicion, clearSuspicion } = await import("../imports/game/ai/suspicionTracker.js");
         const gameId = 'test-suspicion-4';
         initSuspicion(gameId, 0, [0, 1]);
-        updateSuspicion(gameId, 0, 1, 'toll_supply');
+        updateSuspicion(gameId, 0, 1, 'toll_resolve');
         const score = getSuspicion(gameId, 0, 1);
         assert.strictEqual(score, 0); // clamped to 0
         clearSuspicion(gameId);
@@ -787,7 +787,7 @@ describe("false_colors", function () {
         const { chooseLoyalToll } = await import("../imports/game/ai/tollStrategy.js");
         const { Personalities } = await import("../imports/game/ai/personalities.js");
         const curse1 = { id: 'c1', effect: 'noLookout', value: true };
-        const curse2 = { id: 'c2', effect: 'supplyDrain', value: 1 };
+        const curse2 = { id: 'c2', effect: 'resolveDrain', value: 1 };
         const player = { resolve: 0, curses: [curse1, curse2] };
         const game = makeGame({ doomLevel: 6, doomThreshold: 15 });
         const result = chooseLoyalToll(player, game, Personalities.reckless);

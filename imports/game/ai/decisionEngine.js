@@ -208,6 +208,14 @@ async function submitAiCookNourish(gameId, aiPlayer) {
     } else {
       // Sometimes skip entirely
       if (Math.random() < 0.3) {
+        // Update suspicion if someone is desperate (at 0 resolve)
+        const desperate = nonRevealed.filter(p => p.resolve === 0);
+        if (desperate.length > 0) {
+          const aiPlayers = game.players.filter(p => p.isAI && p.seatIndex !== cook.seatIndex);
+          for (const ai of aiPlayers) {
+            updateSuspicion(gameId, ai.seatIndex, cook.seatIndex, 'cook_nourish_skipped');
+          }
+        }
         return;
       }
       // Pick randomly
@@ -224,7 +232,6 @@ async function submitAiCookNourish(gameId, aiPlayer) {
 
     // Update suspicion for Cook's nourish choice
     const aiPlayers = game.players.filter(p => p.isAI && p.seatIndex !== cook.seatIndex);
-    const lowestResolve = Math.min(...nonRevealed.map(p => p.resolve));
     const desperate = nonRevealed.filter(p => p.resolve === 0);
     if (desperate.length > 0 && target.resolve > 0) {
       // Nourished someone who doesn't need it when someone is at 0

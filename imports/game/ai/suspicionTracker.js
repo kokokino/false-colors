@@ -33,7 +33,7 @@ export function updateSuspicion(gameId, aiSeatIndex, targetSeat, eventType) {
 
   const deltas = {
     toll_doom: 0.1,         // Choosing doom is slightly suspicious
-    toll_supply: -0.05,     // Self-sacrifice is reassuring
+    toll_resolve: -0.05,    // Self-sacrifice is reassuring
     toll_curse: 0.0,        // Neutral
     action_optimal: -0.1,   // Good targeting reduces suspicion
     action_suboptimal: 0.15, // Bad targeting raises suspicion

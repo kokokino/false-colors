@@ -12,6 +12,15 @@ Migrations.add({
       { $set: { isExpertPlayer: false } }
     );
     console.log('Added isExpertPlayer to users');
+
+    // Note: New game fields (goldCoins, skulls, expertMode, readyPlayers,
+    // tollAggregate, threatsDefeated, doomAtRoundStart) are NOT backfilled on
+    // existing game docs. This is intentional:
+    //   - New games set these fields in startGame()
+    //   - UI uses null-coalescing: (game.goldCoins || []).length, etc.
+    //   - Old/finished games are not loaded into active play
+    // If a future migration needs to backfill, target games with
+    // { goldCoins: { $exists: false }, result: null } for in-progress games.
   },
   async down() {
     const users = Meteor.users.rawCollection();

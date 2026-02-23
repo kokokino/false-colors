@@ -106,6 +106,7 @@ export async function startGame(roomId, totalPlayers) {
     phaseStartedAt: now,
     phaseDeadline: new Date(now.getTime() + phaseDuration),
     doomLevel: 0,
+    doomAtRoundStart: 0,
     doomThreshold,
     activeThreats: [],
     threatDeck,
@@ -624,7 +625,7 @@ async function runRoundEndPhase(gameId) {
   // Apply curse drain (rotting_stores) — no more passive Cook heal
   const updatedPlayers = game.players.map(p => {
     let resolve = p.resolve;
-    const hasDrain = p.curses.some(c => c.effect === 'supplyDrain');
+    const hasDrain = p.curses.some(c => c.effect === 'resolveDrain');
     if (hasDrain) {
       resolve = Math.max(resolve - 1, 0);
     }
@@ -634,15 +635,20 @@ async function runRoundEndPhase(gameId) {
     $set: { players: updatedPlayers, updatedAt: new Date() },
   });
 
-  // Check for "clean sailing" gold coin — doom didn't increase this round
-  // (We track this by comparing doomLevel at round start; for simplicity, award
-  // if no threats are currently active after resolution)
+  // Check for "clean sailing" gold coin — awarded if doom didn't increase this round
+  // or if all threats are cleared
   const newCoins = [];
   if (game.activeThreats.length === 0) {
     newCoins.push({
       round: game.currentRound,
       reason: 'clean_sailing',
-      description: 'Clean sailing',
+      description: 'All threats cleared',
+    });
+  } else if (game.doomLevel <= (game.doomAtRoundStart || 0)) {
+    newCoins.push({
+      round: game.currentRound,
+      reason: 'clean_sailing',
+      description: 'Smooth sailing',
     });
   }
   if (newCoins.length > 0) {
@@ -666,18 +672,10 @@ async function runRoundEndPhase(gameId) {
     scheduleAiActions(gameId, 'cook_nourish');
   }
 
-  // Timer to advance — longer when Cook has meals
-  const hasCookWithMeals = cook && (cook.mealsRemaining || 0) > 0;
-  if (hasCookWithMeals) {
-    // Give Cook time to choose (use round_end duration which is now 10-15s)
-    startPhaseTimer(gameId, 'round_end', async (gId) => {
-      await startNextRound(gId);
-    }, game.expertMode);
-  } else {
-    startPhaseTimer(gameId, 'round_end', async (gId) => {
-      await startNextRound(gId);
-    }, game.expertMode);
-  }
+  // Timer to advance
+  startPhaseTimer(gameId, 'round_end', async (gId) => {
+    await startNextRound(gId);
+  }, game.expertMode);
 }
 
 // Cook nourish action — called from gameMethods or AI
@@ -744,6 +742,7 @@ async function startNextRound(gameId) {
       currentPhase: GamePhase.THREAT,
       phaseStartedAt: now,
       phaseDeadline: new Date(now.getTime() + phaseDuration),
+      doomAtRoundStart: game.doomLevel,
       tollSubmissions: [],
       actionSubmissions: [],
       revealedActions: null,
@@ -816,7 +815,7 @@ function updateSuspicionFromTolls(game, submissions) {
         continue;
       }
       const eventType = sub.choice === 'doom' ? 'toll_doom'
-        : sub.choice === 'resolve' ? 'toll_supply'
+        : sub.choice === 'resolve' ? 'toll_resolve'
         : 'toll_curse';
       updateSuspicion(game._id, ai.seatIndex, sub.seatIndex, eventType);
     }
@@ -859,7 +858,7 @@ function updateSuspicionFromActions(game, submissions) {
       updateSuspicion(game._id, ai.seatIndex, sub.seatIndex, eventType);
 
       // Extra suspicion for ignoring escalated threats when you're the specialist
-      if (targetedThreat.escalated === false || !targetedThreat.escalated) {
+      if (!targetedThreat.escalated) {
         const escalatedThreats = game.activeThreats.filter(t => t.escalated);
         for (const et of escalatedThreats) {
           if (getActionStrength(role, et.type) >= bestStrength) {

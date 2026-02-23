@@ -33,9 +33,9 @@ export const Curses = [
   {
     id: 'rotting_stores',
     name: 'Rotting Stores',
-    effect: 'supplyDrain',
+    effect: 'resolveDrain',
     value: 1,
-    description: 'You lose 1 supply at the end of each round.',
+    description: 'You lose 1 resolve at the end of each round.',
   },
   {
     id: 'spectral_chill',

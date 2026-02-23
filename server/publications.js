@@ -79,6 +79,8 @@ Meteor.publish('rooms.current', function(roomId) {
 // NEVER publishes: players[].isAI, actionSubmissions, tollSubmissions, llmCallsUsed, threatDeck
 // After game ends: players[].alignment IS revealed, lookoutReveal is no longer stripped
 // Phantom-revealed players: alignment is published during game
+// Intentionally published (not stripped): goldCoins, skulls, tollAggregate, readyPlayers,
+// expertMode, doomAtRoundStart, threatsDefeated, revealedActions, accusation
 Meteor.publish('game', async function(gameId) {
   check(gameId, String);
   if (!this.userId) {
