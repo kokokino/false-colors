@@ -1,5 +1,23 @@
 import m from 'mithril';
 
+const threatTypeNames = {
+  fog: 'Fog',
+  reef: 'Reef',
+  kraken: 'Kraken',
+  storm: 'Storm',
+  illness: 'Illness',
+  hull_breach: 'Hull Breach',
+};
+
+const threatSpecialist = {
+  fog: 'Navigator',
+  reef: 'Navigator',
+  kraken: 'Gunner',
+  storm: 'Gunner',
+  illness: 'Surgeon',
+  hull_breach: 'Quartermaster',
+};
+
 // Display active threats with progress bars, escalation indicators, and specialist hints
 // Attrs: threats (array)
 export const ThreatDisplay = {
@@ -19,9 +37,12 @@ export const ThreatDisplay = {
         }, [
           m('header', [
             m('strong', threat.name),
-            m('small.threat-type', threat.type),
+            m('small.threat-type', threatTypeNames[threat.type] || threat.type),
             threat.escalated ? m('mark', 'Escalated') : null,
           ]),
+          threatSpecialist[threat.type]
+            ? m('small.specialist-hint', `${threatSpecialist[threat.type]} specialty`)
+            : null,
           m('p.threat-desc', threat.description),
           m('div.threat-stats', [
             m('span', `Doom/round: +${threat.doomPerRound}`),

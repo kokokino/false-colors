@@ -1,5 +1,6 @@
 import m from 'mithril';
 import { Meteor } from 'meteor/meteor';
+import { Roles, getActionStrength } from '../../../game/roles.js';
 
 // Action assignment UI — player picks which threat to target
 // Attrs: game, myPlayer, lookoutReveal (only present for lookout players)
@@ -36,16 +37,18 @@ export const ActionSelection = {
 
       this.error ? m('p.error-message', this.error) : null,
 
-      m('div.action-targets', game.activeThreats.map(threat =>
-        m('button.action-target', {
+      m('div.action-targets', game.activeThreats.map(threat => {
+        const role = Object.values(Roles).find(r => r.id === myPlayer.role);
+        const strength = role ? getActionStrength(role, threat.type) : 1;
+        return m('button.action-target', {
           key: threat.id,
           onclick: () => this.submitAction(game._id, threat.id),
         }, [
           m('strong', threat.name),
           m('br'),
-          m('small', `${threat.type} | Progress: ${threat.progress}/${threat.threshold}`),
-        ])
-      )),
+          m('small', `Progress: ${threat.progress}/${threat.threshold} | Your strength: +${strength}`),
+        ]);
+      })),
     ]);
   },
 

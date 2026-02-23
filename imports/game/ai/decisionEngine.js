@@ -202,7 +202,7 @@ async function submitAiCookNourish(gameId, aiPlayer) {
     const personality = Personalities[cook.personality];
     const traits = personality?.traits || {};
     if (Math.random() < 0.3 + (1 - traits.actionOptimality) * 0.3) {
-      // Heal self or highest resolve player (wasteful)
+      // Heal highest resolve player (wasteful)
       const sortedByResolve = [...nonRevealed].sort((a, b) => b.resolve - a.resolve);
       target = sortedByResolve[0];
     } else {
@@ -272,7 +272,9 @@ function scheduleAiDiscussion(gameId, aiPlayer, game) {
         const doomTolls = tollAgg ? tollAgg.doomCount : 0;
 
         if (i === 0) {
-          if (currentGame.currentRound === 1) {
+          if (currentGame.phantomJustRevealed) {
+            trigger = 'phantomRevealedReaction';
+          } else if (currentGame.currentRound === 1) {
             trigger = 'greeting';
           } else if (doomTolls >= 2) {
             trigger = 'tollObservation';
@@ -280,8 +282,10 @@ function scheduleAiDiscussion(gameId, aiPlayer, game) {
             trigger = 'tollReaction';
           }
         } else if (i === 1) {
-          // Comment on actions or doom
-          if (currentGame.revealedActions && Math.random() < 0.5) {
+          // Comment on cook nourish, actions, or doom
+          if (currentGame.lastNourishTarget && Math.random() < 0.6) {
+            trigger = 'cookObservation';
+          } else if (currentGame.revealedActions && Math.random() < 0.5) {
             trigger = 'actionObservation';
           } else if (doomHigh && Math.random() < 0.4) {
             trigger = 'doomWarning';
@@ -289,14 +293,22 @@ function scheduleAiDiscussion(gameId, aiPlayer, game) {
             trigger = 'threatAssessment';
           }
         } else {
-          if (currentGame.goldCoins && currentGame.skulls) {
+          if ((currentGame.goldCoins || []).length > 0 || (currentGame.skulls || []).length > 0) {
             trigger = (Math.random() < 0.3) ? 'scoreObservation' : (doomHigh ? 'doomWarning' : 'commentary');
           } else {
             trigger = doomHigh && Math.random() < 0.5 ? 'doomWarning' : 'commentary';
           }
         }
 
-        const text = await generateAiDialogue(currentGame, aiPlayer, trigger);
+        // Build slot overrides for specific triggers
+        let slotOverrides;
+        if (trigger === 'phantomRevealedReaction' && currentGame.phantomJustRevealed) {
+          slotOverrides = { player_name: currentGame.phantomJustRevealed };
+        } else if (trigger === 'cookObservation' && currentGame.lastNourishTarget) {
+          slotOverrides = { player_name: currentGame.lastNourishTarget };
+        }
+
+        const text = await generateAiDialogue(currentGame, aiPlayer, trigger, slotOverrides);
 
         await GameMessages.insertAsync({
           gameId,

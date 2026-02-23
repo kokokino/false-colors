@@ -8,7 +8,6 @@ const resultMessages = {
 };
 
 const reasonMessages = {
-  phantom_caught: 'The phantom was unmasked and thrown overboard.',
   survived_all_rounds: 'The crew survived all rounds and reached the Sunken Crown.',
   all_threats_cleared: 'Every threat was conquered. The seas are calm.',
   doom_threshold: 'Doom reached the breaking point. The ship is lost.',

@@ -6,7 +6,7 @@ export const DoomTracker = {
   view(vnode) {
     const { doomLevel, doomThreshold } = vnode.attrs;
     const percentage = Math.min((doomLevel / doomThreshold) * 100, 100);
-    const danger = percentage > 75 ? 'danger' : percentage > 50 ? 'warning' : '';
+    const danger = percentage > 86 ? 'danger' : percentage > 66 ? 'warning' : '';
 
     return m('div.doom-tracker', [
       m('div.doom-label', [

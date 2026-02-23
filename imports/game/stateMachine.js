@@ -360,7 +360,13 @@ export async function resolveTollPhase(gameId) {
 async function runDiscussionPhase(gameId) {
   const game = await Games.findOneAsync(gameId);
   // Schedule AI chat messages with human-like delays
+  // (reads game doc for lastNourishTarget / phantomJustRevealed flags before we clear them)
   scheduleAiActions(gameId, 'discussion');
+
+  // Clear one-shot discussion trigger flags after AI scheduling reads them
+  await Games.updateAsync(gameId, {
+    $unset: { lastNourishTarget: '', phantomJustRevealed: '' },
+  });
 
   startPhaseTimer(gameId, 'discussion', advancePhase, game?.expertMode);
 }
@@ -546,6 +552,12 @@ export async function resolveAccusationPhase(gameId) {
       updatedAt: new Date(),
     };
 
+    // Flag correct accusation so next discussion triggers phantomRevealedReaction
+    if (result.correct) {
+      const target = game.players.find(p => p.seatIndex === game.accusation.targetSeat);
+      setOp.phantomJustRevealed = target?.displayName || 'the phantom';
+    }
+
     // Apply doom change from accusation
     if (result.doomChange) {
       setOp.doomLevel = Math.max(0, Math.min(game.doomLevel + result.doomChange, game.doomThreshold + 10));
@@ -679,43 +691,57 @@ async function runRoundEndPhase(gameId) {
 }
 
 // Cook nourish action — called from gameMethods or AI
+// Uses resolveLock to prevent TOCTOU race from double-clicks or network retries
 export async function applyCookNourish(gameId, cookSeatIndex, targetSeatIndex) {
-  const game = await Games.findOneAsync(gameId);
-  if (!game || game.currentPhase !== GamePhase.ROUND_END) {
+  const lockKey = `nourish_${gameId}`;
+  if (resolveLocks.get(lockKey)) {
     return false;
   }
-
-  const cook = game.players.find(p => p.seatIndex === cookSeatIndex && p.role === 'cook');
-  if (!cook || (cook.mealsRemaining || 0) <= 0) {
-    return false;
-  }
-
-  const target = game.players.find(p => p.seatIndex === targetSeatIndex);
-  if (!target || target.phantomRevealed) {
-    return false;
-  }
-
-  const updatedPlayers = game.players.map(p => {
-    if (p.seatIndex === targetSeatIndex) {
-      return { ...p, resolve: Math.min(p.resolve + 1, MAX_RESOLVE) };
+  resolveLocks.set(lockKey, true);
+  try {
+    const game = await Games.findOneAsync(gameId);
+    if (!game || game.currentPhase !== GamePhase.ROUND_END) {
+      return false;
     }
-    if (p.seatIndex === cookSeatIndex) {
-      return { ...p, mealsRemaining: (p.mealsRemaining || 0) - 1 };
+
+    const cook = game.players.find(p => p.seatIndex === cookSeatIndex && p.role === 'cook');
+    if (!cook || (cook.mealsRemaining || 0) <= 0) {
+      return false;
     }
-    return { ...p };
-  });
 
-  await Games.updateAsync(gameId, {
-    $set: { players: updatedPlayers, updatedAt: new Date() },
-  });
+    const target = game.players.find(p => p.seatIndex === targetSeatIndex);
+    if (!target || target.phantomRevealed) {
+      return false;
+    }
 
-  await appendLog(gameId, game.currentRound, GamePhase.ROUND_END, 'cook_nourish', {
-    cookSeat: cookSeatIndex,
-    targetSeat: targetSeatIndex,
-    targetName: target.displayName,
-  });
+    const updatedPlayers = game.players.map(p => {
+      if (p.seatIndex === targetSeatIndex) {
+        return { ...p, resolve: Math.min(p.resolve + 1, MAX_RESOLVE) };
+      }
+      if (p.seatIndex === cookSeatIndex) {
+        return { ...p, mealsRemaining: (p.mealsRemaining || 0) - 1 };
+      }
+      return { ...p };
+    });
 
-  return true;
+    await Games.updateAsync(gameId, {
+      $set: {
+        players: updatedPlayers,
+        lastNourishTarget: target.displayName,
+        updatedAt: new Date(),
+      },
+    });
+
+    await appendLog(gameId, game.currentRound, GamePhase.ROUND_END, 'cook_nourish', {
+      cookSeat: cookSeatIndex,
+      targetSeat: targetSeatIndex,
+      targetName: target.displayName,
+    });
+
+    return true;
+  } finally {
+    resolveLocks.delete(lockKey);
+  }
 }
 
 // Start a new round
