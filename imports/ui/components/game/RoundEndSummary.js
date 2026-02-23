@@ -31,9 +31,14 @@ export const RoundEndSummary = {
       // Cook nourish UI
       isCook && hasMeals && !this.nourished
         ? this.renderCookNourish(game, myPlayer, cook)
-        : hasMeals
+        : hasMeals && !game.lastNourishTarget
           ? m('p.muted', `Cook ${cook.displayName} may nourish a crew member. (${cook.mealsRemaining} meals left)`)
           : null,
+
+      // Show nourish result to all players
+      game.lastNourishTarget
+        ? m('p', `Cook nourished ${game.lastNourishTarget}.`)
+        : null,
 
       this.error ? m('p.error-message', this.error) : null,
 

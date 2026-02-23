@@ -521,7 +521,7 @@ describe("false_colors", function () {
         assert.strictEqual(result.convicted, false);
       });
 
-      it("wrong accusation but target has phantom_whisper → no accuser penalty but still doom+skull", async function () {
+      it("wrong accusation but target has phantom_whisper → accuser still loses action plus doom+skull", async function () {
         const { resolveAccusation } = await import("../imports/game/resolution.js");
         const phantomWhisper = { id: 'phantom_whisper', name: 'Phantom Whisper', effect: 'accusationPenalty', value: true, description: 'test' };
         const game = makeGame({
@@ -540,7 +540,9 @@ describe("false_colors", function () {
         assert.strictEqual(result.convicted, true);
         assert.strictEqual(result.doomChange, 3);
         assert.ok(result.skull);
-        assert.strictEqual(result.updatedPlayers, undefined);
+        assert.ok(result.updatedPlayers);
+        const accuser = result.updatedPlayers.find(p => p.seatIndex === 0);
+        assert.strictEqual(accuser.hasNextAction, false);
       });
     });
 

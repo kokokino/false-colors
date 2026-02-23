@@ -6,7 +6,16 @@ import { Meteor } from 'meteor/meteor';
 export const TollSelection = {
   oninit() {
     this.submitted = false;
+    this.autoSubmitting = false;
     this.error = null;
+  },
+
+  onupdate(vnode) {
+    const { game, myPlayer } = vnode.attrs;
+    if (myPlayer.phantomRevealed && !this.submitted && !this.autoSubmitting) {
+      this.autoSubmitting = true;
+      this.submitToll(game._id, 'doom');
+    }
   },
 
   view(vnode) {
@@ -14,9 +23,6 @@ export const TollSelection = {
 
     // Revealed phantom: forced to doom
     if (myPlayer.phantomRevealed) {
-      if (!this.submitted) {
-        this.submitToll(game._id, 'doom');
-      }
       return m('div.phase-content.toll-selection', [
         m('h3', 'Pay the Toll'),
         m('p', 'As a revealed phantom, you are forced to add doom.'),

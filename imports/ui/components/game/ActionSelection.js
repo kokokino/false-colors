@@ -39,7 +39,20 @@ export const ActionSelection = {
 
       m('div.action-targets', game.activeThreats.map(threat => {
         const role = Object.values(Roles).find(r => r.id === myPlayer.role);
-        const strength = role ? getActionStrength(role, threat.type) : 1;
+        let strength = role ? getActionStrength(role, threat.type) : 1;
+        // Apply weakened_arm curse penalty
+        const hasWeakenedArm = myPlayer.curses?.some(c => c.effect === 'actionPenalty');
+        if (hasWeakenedArm) {
+          strength = Math.max(strength - 1, 0);
+        }
+        // Zero resolve penalty
+        if (myPlayer.resolve <= 0) {
+          strength = Math.max(strength - 1, 0);
+        }
+        // Revealed phantom cap
+        if (myPlayer.phantomRevealed) {
+          strength = Math.min(strength, 1);
+        }
         return m('button.action-target', {
           key: threat.id,
           onclick: () => this.submitAction(game._id, threat.id),

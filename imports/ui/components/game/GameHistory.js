@@ -57,7 +57,7 @@ function formatLogEntry(log) {
       return `Tolls resolved (${data.submissions || 0} submissions)`;
     case 'actions_resolved':
       if (data.actions && data.actions.length > 0) {
-        return data.actions.map(a => `${a.displayName} (${a.role}) → ${a.strength || '?'} str`).join(', ');
+        return data.actions.map(a => `${a.displayName} (${a.role}) → ${a.threatName || '?'} (+${a.strength || '?'})`).join(', ');
       }
       return 'Actions resolved';
     case 'accusation_resolved':

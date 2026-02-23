@@ -191,7 +191,7 @@ async function submitAiCookNourish(gameId, aiPlayer) {
   }
 
   // Choose target based on alignment
-  const nonRevealed = game.players.filter(p => !p.phantomRevealed && p.seatIndex !== cook.seatIndex);
+  const nonRevealed = game.players.filter(p => !p.phantomRevealed);
   if (nonRevealed.length === 0) {
     return;
   }
@@ -229,16 +229,6 @@ async function submitAiCookNourish(gameId, aiPlayer) {
 
   if (target) {
     await applyCookNourish(gameId, cook.seatIndex, target.seatIndex);
-
-    // Update suspicion for Cook's nourish choice
-    const aiPlayers = game.players.filter(p => p.isAI && p.seatIndex !== cook.seatIndex);
-    const desperate = nonRevealed.filter(p => p.resolve === 0);
-    if (desperate.length > 0 && target.resolve > 0) {
-      // Nourished someone who doesn't need it when someone is at 0
-      for (const ai of aiPlayers) {
-        updateSuspicion(gameId, ai.seatIndex, cook.seatIndex, 'cook_nourish_wasteful');
-      }
-    }
   }
 }
 

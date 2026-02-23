@@ -185,15 +185,15 @@ export function resolveAccusation(game, accusation) {
     // Wrong accusation — accuser loses next action + 3 doom + 1 skull
     // Unless target has phantom_whisper curse (accusationPenalty), which protects them
     const hasPhantomWhisper = target && target.curses.some(c => c.effect === 'accusationPenalty');
-    if (hasPhantomWhisper) {
-      return { correct: false, convicted: true, doomChange: 3, skull: { round: game.currentRound, reason: 'false_accusation', description: 'False accusation' } };
-    }
     const updatedPlayers = game.players.map(p => {
       if (p.seatIndex === accuserSeat) {
         return { ...p, hasNextAction: false };
       }
       return { ...p };
     });
+    if (hasPhantomWhisper) {
+      return { correct: false, convicted: true, updatedPlayers, doomChange: 3, skull: { round: game.currentRound, reason: 'false_accusation', description: 'False accusation' } };
+    }
     return {
       correct: false,
       convicted: true,

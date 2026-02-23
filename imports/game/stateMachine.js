@@ -494,7 +494,10 @@ export async function resolveActionPhase(gameId) {
     updateSuspicionFromActions(game, allSubmissions);
 
     await appendLog(gameId, game.currentRound, GamePhase.ACTION, 'actions_resolved', {
-      actions: revealedActions,
+      actions: revealedActions.map(a => {
+        const threat = game.activeThreats.find(t => t.id === a.threatId);
+        return { ...a, threatName: threat?.name || 'Unknown' };
+      }),
     });
 
     await advancePhase(gameId);
@@ -738,6 +741,16 @@ export async function applyCookNourish(gameId, cookSeatIndex, targetSeatIndex) {
       targetName: target.displayName,
     });
 
+    // Update AI suspicion for Cook nourish choice (works for both human and AI cooks)
+    const nonRevealed = game.players.filter(p => !p.phantomRevealed && p.seatIndex !== cookSeatIndex);
+    const desperate = nonRevealed.filter(p => p.resolve === 0);
+    if (desperate.length > 0 && target.resolve > 0) {
+      const aiObservers = game.players.filter(p => p.isAI && p.seatIndex !== cookSeatIndex);
+      for (const ai of aiObservers) {
+        updateSuspicion(gameId, ai.seatIndex, cookSeatIndex, 'cook_nourish_wasteful');
+      }
+    }
+
     return true;
   } finally {
     resolveLocks.delete(lockKey);
@@ -828,7 +841,12 @@ export async function checkReadyToAdvance(gameId) {
   const humanPlayers = game.players.filter(p => !p.isAI);
   const allReady = humanPlayers.every(p => (game.readyPlayers || []).includes(p.seatIndex));
   if (allReady && humanPlayers.length > 0) {
-    await advancePhase(gameId);
+    // If accusation phase has an unresolved accusation, resolve it first
+    if (game.currentPhase === GamePhase.ACCUSATION && game.accusation && !game.accusation.resolved) {
+      await resolveAccusationPhase(gameId);
+    } else {
+      await advancePhase(gameId);
+    }
   }
 }
 
