@@ -23,10 +23,23 @@ const eventLabels = {
 // Scrollable game event log
 // Attrs: logs (array)
 export const GameLogPanel = {
-  onupdate() {
+  oncreate() {
     const container = document.querySelector('.game-log-entries');
     if (container) {
       container.scrollTop = container.scrollHeight;
+    }
+    this.prevLogCount = 0;
+  },
+
+  onupdate(vnode) {
+    const logs = vnode.attrs.logs || [];
+    const container = document.querySelector('.game-log-entries');
+    if (container && logs.length !== this.prevLogCount) {
+      this.prevLogCount = logs.length;
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 60;
+      if (isNearBottom) {
+        container.scrollTop = container.scrollHeight;
+      }
     }
   },
 

@@ -10,14 +10,26 @@ export const DiscussionChat = {
     this.sending = false;
     this.error = null;
     this.readySubmitted = false;
+    this.prevMessageCount = 0;
   },
 
   oncreate() {
     this.scrollToBottom();
   },
 
-  onupdate() {
-    this.scrollToBottom();
+  onupdate(vnode) {
+    const messages = vnode.attrs.messages || [];
+    const roundMessages = messages.filter(msg => msg.round === vnode.attrs.game.currentRound);
+    if (roundMessages.length !== this.prevMessageCount) {
+      this.prevMessageCount = roundMessages.length;
+      const container = document.querySelector('.discussion-messages');
+      if (container) {
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 60;
+        if (isNearBottom) {
+          container.scrollTop = container.scrollHeight;
+        }
+      }
+    }
   },
 
   scrollToBottom() {
