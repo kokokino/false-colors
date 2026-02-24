@@ -311,6 +311,18 @@ footer {
   margin-left: 0.5em;
 }
 
+.phantom-badge {
+  font-size: 0.7em;
+  padding: 0.1em 0.4em;
+  margin-left: 0.5em;
+  background: var(--pico-del-color);
+  color: var(--pico-background-color);
+}
+
+.crew-member.phantom-revealed {
+  border-left: 3px solid var(--pico-del-color);
+}
+
 .player-identity {
   font-size: 0.9em;
   white-space: nowrap;

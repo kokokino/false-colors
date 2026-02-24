@@ -21,7 +21,7 @@ export const PlayerPanel = {
             m('strong', player.displayName),
             m('small.role-badge', player.role),
             player.seatIndex === currentSeat ? m('mark.you-badge', 'YOU') : null,
-            player.phantomRevealed ? m('mark', 'PHANTOM') : null,
+            player.phantomRevealed ? m('mark.phantom-badge', 'PHANTOM') : null,
           ]),
           m('div.crew-stats', [
             m('span', `Resolve: ${player.resolve}`),
