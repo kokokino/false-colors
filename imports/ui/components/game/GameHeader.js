@@ -3,6 +3,7 @@ import { DoomTracker } from './DoomTracker.js';
 import { CountdownTimer } from './CountdownTimer.js';
 
 const phaseLabels = {
+  character_reveal: 'Character Reveal',
   threat: 'New Threat',
   toll: 'Pay the Toll',
   discussion: 'Discussion',

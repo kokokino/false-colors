@@ -1,11 +1,12 @@
 // Character card content for Phantom Tides theme
 // Keyed by role id from imports/game/roles.js
 
+import { CrewRoster } from './ai/crewRoster.js';
+
 export const CharacterCards = {
   navigator: {
-    title: 'Navigator Voss',
     motto: '"The sea has a path for those who listen."',
-    bio: 'Once a cartographer for the Royal Fleet, Voss lost everything when her charts led a convoy into the Phantom Straits. Now bound to this ghost ship, she reads the tides and fog like scripture, determined to guide this crew where she once failed.',
+    bio: 'Once a cartographer for the Royal Fleet, {surname} lost everything when her charts led a convoy into the Phantom Straits. Now bound to this ghost ship, she reads the tides and fog like scripture, determined to guide this crew where she once failed.',
     abilityName: 'Chart Reader',
     abilityDescription: 'Specializes in navigating fog banks and treacherous reefs. Contributes exceptional effort against these threats but struggles with dangers outside her expertise.',
     specialtyLabel: 'Fog & Reef',
@@ -25,9 +26,8 @@ export const CharacterCards = {
   },
 
   gunner: {
-    title: 'Gunner Thane',
     motto: '"If it bleeds ink or lightning, I can kill it."',
-    bio: 'A disgraced naval officer who once sank an allied frigate in a storm of confusion. Thane was hanged for mutiny, yet woke aboard this cursed vessel with cannons that never jam and thunder in his blood. He fights because fighting is all he has left.',
+    bio: 'A disgraced naval officer who once sank an allied frigate in a storm of confusion. {surname} was hanged for mutiny, yet woke aboard this cursed vessel with cannons that never jam and thunder in his blood. He fights because fighting is all he has left.',
     abilityName: 'Broadside',
     abilityDescription: 'Specializes in repelling kraken attacks and weathering violent storms. Devastating against maritime monsters but less effective against subtler threats.',
     specialtyLabel: 'Kraken & Storm',
@@ -47,9 +47,8 @@ export const CharacterCards = {
   },
 
   surgeon: {
-    title: 'Surgeon Maren',
     motto: '"I have stitched the living and the dead. The difference is smaller than you think."',
-    bio: 'Dr. Maren served aboard plague ships during the Gray Fever outbreak, losing patients and her own sanity in equal measure. She joined this ghost crew willingly, believing cursed waters hold the cure she never found. Her steady hands are the only thing keeping the crew alive.',
+    bio: 'Dr. {surname} served aboard plague ships during the Gray Fever outbreak, losing patients and her own sanity in equal measure. She joined this ghost crew willingly, believing cursed waters hold the cure she never found. Her steady hands are the only thing keeping the crew alive.',
     abilityName: 'Plague Ward',
     abilityDescription: 'The sole specialist against illness outbreaks. When plague sweeps the ship, only the Surgeon can contain it effectively. Modest contribution against other threats.',
     specialtyLabel: 'Illness',
@@ -69,9 +68,8 @@ export const CharacterCards = {
   },
 
   quartermaster: {
-    title: 'Quartermaster Breck',
     motto: '"Every plank, every nail, every soul — all accounted for."',
-    bio: 'Breck ran the supply lines for a merchant fleet until a hull breach sank his flagship and his fortune. Meticulous and resourceful, he patches what others overlook. On this ghost ship, his ledgers track not cargo but the dwindling hope of the crew.',
+    bio: '{surname} ran the supply lines for a merchant fleet until a hull breach sank his flagship and his fortune. Meticulous and resourceful, he patches what others overlook. On this ghost ship, his ledgers track not cargo but the dwindling hope of the crew.',
     abilityName: 'Hull Specialist',
     abilityDescription: 'Expert at sealing hull breaches, and a reliable generalist against all other threats. The crew\'s most versatile fighter — never great, but never useless.',
     specialtyLabel: 'Hull Breach',
@@ -91,9 +89,8 @@ export const CharacterCards = {
   },
 
   lookout: {
-    title: 'Lookout Iris',
     motto: '"I see everything. I trust nothing."',
-    bio: 'Iris was a lighthouse keeper who watched three ships wreck on her shore in a single night — and swears she saw a phantom crew walking the waves. She joined this voyage to prove she wasn\'t mad. Her eyes never rest, and her suspicion never sleeps.',
+    bio: '{surname} was a lighthouse keeper who watched three ships wreck on her shore in a single night — and swears she saw a phantom crew walking the waves. She joined this voyage to prove she wasn\'t mad. Her eyes never rest, and her suspicion never sleeps.',
     abilityName: 'Vigilance',
     abilityDescription: 'A balanced fighter with no specialty, contributing steady effort against all threats equally. What the Lookout lacks in raw power, they make up for with intelligence.',
     specialtyLabel: 'None (generalist)',
@@ -113,9 +110,8 @@ export const CharacterCards = {
   },
 
   cook: {
-    title: 'Cook Pollux',
     motto: '"A full belly keeps the nightmares at bay... mostly."',
-    bio: 'Pollux was a tavern owner who fed sailors their last meals before cursed voyages. When his own tavern burned, he found himself aboard this ship with nothing but a ladle and a stubborn refusal to let anyone go hungry. His cooking may be humble, but his care keeps the crew standing.',
+    bio: '{surname} was a tavern owner who fed sailors their last meals before cursed voyages. When his own tavern burned, he found himself aboard this ship with nothing but a ladle and a stubborn refusal to let anyone go hungry. His cooking may be humble, but his care keeps the crew standing.',
     abilityName: 'Galley Hand',
     abilityDescription: 'The weakest fighter on the ship, contributing minimal effort against all threats. The Cook\'s true value lies elsewhere — in keeping the crew nourished and resilient.',
     specialtyLabel: 'None',
@@ -134,3 +130,12 @@ export const CharacterCards = {
     ],
   },
 };
+
+// Sync titles and bios from crew roster (single source of truth for character names)
+for (const crew of CrewRoster) {
+  if (CharacterCards[crew.roleId]) {
+    CharacterCards[crew.roleId].title = crew.characterName;
+    const surname = crew.characterName.split(' ').slice(1).join(' ');
+    CharacterCards[crew.roleId].bio = CharacterCards[crew.roleId].bio.replace('{surname}', surname);
+  }
+}

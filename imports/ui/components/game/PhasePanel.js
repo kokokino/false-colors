@@ -17,6 +17,12 @@ export const PhasePanel = {
     }
 
     switch (game.currentPhase) {
+      case 'character_reveal':
+        return m('div.phase-character-reveal', [
+          m('h3', 'Review Your Crew Card'),
+          m('p', 'Take a moment to study your role, abilities, and strategy tips. The voyage begins shortly.'),
+        ]);
+
       case 'threat':
         return m(ThreatReveal, { threats: game.activeThreats });
 

@@ -108,14 +108,14 @@ export async function startGame(roomId, totalPlayers) {
   const threatDeck = createThreatDeck();
 
   const now = new Date();
-  const phaseDuration = getPhaseDuration('threat', expertMode);
+  const phaseDuration = getPhaseDuration('character_reveal', expertMode);
   const gameId = await Games.insertAsync({
     roomId,
     theme: 'phantom_tides',
     players,
     currentRound: 1,
     maxRounds,
-    currentPhase: GamePhase.THREAT,
+    currentPhase: GamePhase.CHARACTER_REVEAL,
     phaseStartedAt: now,
     phaseDeadline: new Date(now.getTime() + phaseDuration),
     doomLevel: 0,
@@ -146,13 +146,13 @@ export async function startGame(roomId, totalPlayers) {
     $set: { status: RoomStatus.PLAYING, gameId },
   });
 
-  await appendLog(gameId, 1, GamePhase.THREAT, 'game_started', {
+  await appendLog(gameId, 1, GamePhase.CHARACTER_REVEAL, 'game_started', {
     playerCount: totalPlayers,
     humanCount: humanUserIds.length,
   });
 
-  // Begin the first phase
-  await runThreatPhase(gameId);
+  // Begin with character reveal so players can read their role
+  await runCharacterRevealPhase(gameId);
 
   return gameId;
 }
@@ -177,6 +177,7 @@ export async function advancePhase(gameId, expectedPhase) {
     clearPhaseTimer(gameId);
 
     const phaseOrder = [
+      GamePhase.CHARACTER_REVEAL,
       GamePhase.THREAT,
       GamePhase.TOLL,
       GamePhase.DISCUSSION,
@@ -210,6 +211,9 @@ export async function advancePhase(gameId, expectedPhase) {
 
     // Execute phase logic
     switch (nextPhase) {
+      case GamePhase.THREAT:
+        await runThreatPhase(gameId);
+        break;
       case GamePhase.TOLL:
         await runTollPhase(gameId);
         break;
@@ -229,6 +233,17 @@ export async function advancePhase(gameId, expectedPhase) {
   } finally {
     resolveLocks.delete(lockKey);
   }
+}
+
+// CHARACTER REVEAL PHASE — brief pause at game start for players to read their role
+async function runCharacterRevealPhase(gameId) {
+  const game = await Games.findOneAsync(gameId);
+  if (!game) {
+    return;
+  }
+
+  // Auto-advance to threat phase when timer expires
+  startPhaseTimer(gameId, 'character_reveal', (gId) => advancePhase(gId, GamePhase.CHARACTER_REVEAL), game.expertMode);
 }
 
 // THREAT PHASE — generate threats, add doom from existing ones, escalate old threats

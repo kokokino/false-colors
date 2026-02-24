@@ -101,7 +101,8 @@ export const GameBoard = {
     }
 
     // Character card auto-show after intro (round 1 only)
-    if (this.showCharacterCard && !this.showIntro && game.currentRound === 1 && myPlayer) {
+    // Expert players skip GameIntro, so also show when showIntro is still true in expert mode
+    if (this.showCharacterCard && (!this.showIntro || expertMode) && game.currentRound === 1 && myPlayer) {
       return m(CharacterCard, {
         player: myPlayer,
         isSelf: true,

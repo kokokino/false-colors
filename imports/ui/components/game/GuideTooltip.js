@@ -1,6 +1,7 @@
 import m from 'mithril';
 
 const phaseGuides = {
+  character_reveal: 'Meet your crew member. Review your role, abilities, and strategy tips before the voyage begins.',
   threat: 'A new danger approaches your ship. Each active threat adds doom every round. If doom hits 15, the ship sinks.',
   toll: 'Every crew member must pay a toll. Pick your poison — all three choices hurt. Watch what others choose in the Voyage Journal.',
   discussion: 'Talk with your crew. Who should target which threat? Check the Voyage Journal — anyone acting suspicious?',

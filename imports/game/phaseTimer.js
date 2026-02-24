@@ -5,6 +5,7 @@ const phaseTimers = new Map();
 
 // Phase durations in milliseconds — novice (default) and expert modes
 export const PhaseDurationsNovice = {
+  character_reveal: 15000,
   threat: 3000,
   toll: 45000,
   discussion: 60000,
@@ -14,6 +15,7 @@ export const PhaseDurationsNovice = {
 };
 
 export const PhaseDurationsExpert = {
+  character_reveal: 12000,
   threat: 2000,
   toll: 30000,
   discussion: 45000,

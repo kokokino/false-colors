@@ -11,6 +11,7 @@ export const RoomStatus = {
 
 // Game phase constants
 export const GamePhase = {
+  CHARACTER_REVEAL: 'character_reveal',
   THREAT: 'threat',
   TOLL: 'toll',
   DISCUSSION: 'discussion',
