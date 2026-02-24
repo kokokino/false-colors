@@ -68,6 +68,50 @@ Game ends when: doom reaches threshold (doom loss), all threats resolved and rou
 - `server/roomMethods.js` — Matchmaking (`matchmaking.findOrCreate`, `rooms.touch`, `rooms.leave`)
 - `server/roomCleanup.js` — Periodic cleanup of stale/finished rooms (every 30 min)
 
+### Collections
+
+Collection instances are defined in `imports/api/collections.js`. Enums and constants are re-exported from `imports/lib/collections/games.js`. Import collections from `api/collections.js`; import enums/constants from `lib/collections/games.js`.
+
+Six MongoDB collections — all game data is ephemeral (24-hour TTL indexes on `createdAt`/`updatedAt`):
+- `usedNonces` — SSO replay prevention (10-min TTL)
+- `subscriptionCache` — Hub subscription cache (5-min TTL)
+- `gameRooms` — Rooms/matchmaking
+- `games` — Live game state (the main document)
+- `gameMessages` — Chat messages
+- `gameLogs` — Append-only event log
+
+### Concurrency & Submission Patterns
+
+**Atomic submissions** — All player submissions (toll, action, vote) use atomic check-and-push to prevent TOCTOU races:
+```js
+const updated = await Games.updateAsync(
+  { _id: gameId, currentPhase: GamePhase.TOLL, 'tollSubmissions.seatIndex': { $ne: player.seatIndex } },
+  { $push: { tollSubmissions: { seatIndex, choice } }, $set: { updatedAt: new Date() } }
+);
+if (updated === 0) { throw new Meteor.Error('already-submitted', '...'); }
+```
+Follow this pattern for any new submission-type method.
+
+**In-memory resolve locks** — `stateMachine.js` uses a module-level `Map<string, boolean>` (`resolveLocks`) keyed like `advance_<gameId>`, `toll_<gameId>` etc. to prevent concurrent resolution from timer, AI, and human callers. Always use `try/finally` to release locks.
+
+**Circular dependency resolution** — `stateMachine.js` and `decisionEngine.js` avoid circular imports via `imports/game/resolverRegistry.js`. `stateMachine.js` registers its resolve functions; `decisionEngine.js` retrieves them at call time via `getResolver()`.
+
+### Disconnect Handling
+
+When a subscriber disconnects from the `game` publication, a 30-second grace timer starts. If the player doesn't reconnect, `convertToAi()` replaces them with an AI mid-game. The timer is cleared on reconnection.
+
+### Expert Mode & Phase Timers
+
+Phase timers are server-side `Meteor.setTimeout` stored in a module-level Map. Games have an `expertMode` flag (set at creation if all humans have `isExpertPlayer: true`). Expert mode uses shorter durations (e.g., toll: 30s vs 45s novice, discussion: 45s vs 60s).
+
+### Scoring System
+
+Win/loss at round 10: `goldCoins.length > skulls.length` = `LOYAL_WIN`, otherwise `CREW_LOSS`. If doom hits threshold: `PHANTOM_WIN` (phantom exists) or `DOOM_LOSS` (no phantom).
+
+Gold coins: threat defeated, correct accusation (−3 doom), clean sailing (doom didn't rise). Skulls: doom crossing 5 or 10 (one-time each), threat active 2+ rounds (escalated), threat causing 4+ doom (ravaged), false accusation. Both are arrays of `{ round, reason, description }` on the game document.
+
+Accused phantom stays in game with `phantomRevealed: true`, action strength capped at 1, forced doom toll.
+
 ### Key Directories
 - `imports/hub/` — SSO handler, Hub API client, subscription checking
 - `imports/game/` — State machine, resolution, roles, threats, curses, phase timer
@@ -134,10 +178,26 @@ Game ends when: doom reaches threshold (doom loss), all threats resolved and rou
 ## Patterns
 
 ### Mithril Components
-Components are plain objects with lifecycle hooks. State lives on `vnode.state`. Call `m.redraw()` after async operations.
+Components are plain objects with lifecycle hooks. State lives on `this` (the vnode state object), not `vnode.state` directly. Call `m.redraw()` after async operations. Components never use `onbeforeupdate`.
 
-### Meteor-Mithril Reactivity
-The `MeteorWrapper` component in `client/main.js` bridges Meteor's reactivity with Mithril via `Tracker.autorun`.
+Reactive data pattern — subscribe and autorun in `oncreate`, clean up in `onremove`:
+```js
+export const MyComponent = {
+  oninit(vnode) { this.data = null; },
+  oncreate(vnode) {
+    this.sub = Meteor.subscribe('myPub', args);
+    this.computation = Tracker.autorun(() => {
+      this.data = Collection.findOne(query);
+      m.redraw();
+    });
+  },
+  onremove() { this.sub.stop(); this.computation.stop(); },
+  view(vnode) { /* ... */ }
+};
+```
+
+### Client Routing
+`m.route.prefix = ''` (clean URLs, no hash). Every route is wrapped via `layoutRoute()` → `MeteorWrapper > MainLayout`. `MeteorWrapper` bridges Meteor reactivity with Mithril by reading `Meteor.user()`, `Meteor.userId()`, and `Meteor.loggingIn()` inside `Tracker.autorun`, triggering `m.redraw()` on auth changes.
 
 ### Publications
 - Always check `this.userId` before publishing sensitive data
@@ -152,5 +212,8 @@ The `MeteorWrapper` component in `client/main.js` bridges Meteor's reactivity wi
 ### Migrations
 Uses `quave:migrations` package. Migrations in `server/migrations/` with `up()` and `down()` methods. Auto-run on startup via `Migrations.migrateTo('latest')`.
 
+### CSS
+All styles live in `client/main.css`. Pico CSS is imported via npm in `client/main.js`. Use Pico CSS variables (`--pico-primary`, `--pico-del-color`, etc.) for colors. Loading spinner: apply `.loading` class to any element (pure CSS `::after` pseudo-element, no children needed).
+
 ### Testing
-Mocha with Node.js `assert`. Server-only tests wrap in `if (Meteor.isServer)`. Tests are in `tests/main.js`.
+Mocha with Node.js `assert`. All tests in `tests/main.js`. Server-only tests wrap in `if (Meteor.isServer)` and must `require()` server modules explicitly (not top-level imports). Test fixtures use `makeGame(overrides)` and `makeThreat(overrides)` helpers that construct plain objects (not DB-inserted). Method tests use `Meteor.callAsync()` and check `error.error` (the error code).
