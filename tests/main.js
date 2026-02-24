@@ -1433,6 +1433,60 @@ describe("false_colors", function () {
       });
     });
 
+    // ---- Doom Milestone Helper ----
+
+    describe("checkDoomMilestones", function () {
+      it("returns empty when no milestone crossed", async function () {
+        const { checkDoomMilestones } = await import("../imports/game/stateMachine.js");
+        const result = checkDoomMilestones(2, 4, 3);
+        assert.strictEqual(result.length, 0);
+      });
+
+      it("returns doom_rising when crossing 5", async function () {
+        const { checkDoomMilestones } = await import("../imports/game/stateMachine.js");
+        const result = checkDoomMilestones(3, 6, 2);
+        assert.strictEqual(result.length, 1);
+        assert.strictEqual(result[0].reason, 'doom_rising');
+        assert.strictEqual(result[0].round, 2);
+        assert.strictEqual(result[0].description, 'Doom rising');
+      });
+
+      it("returns doom_critical when crossing 10", async function () {
+        const { checkDoomMilestones } = await import("../imports/game/stateMachine.js");
+        const result = checkDoomMilestones(8, 11, 5);
+        assert.strictEqual(result.length, 1);
+        assert.strictEqual(result[0].reason, 'doom_critical');
+        assert.strictEqual(result[0].round, 5);
+        assert.strictEqual(result[0].description, 'Doom critical');
+      });
+
+      it("returns both milestones when crossing 5 and 10 at once", async function () {
+        const { checkDoomMilestones } = await import("../imports/game/stateMachine.js");
+        const result = checkDoomMilestones(3, 12, 4);
+        assert.strictEqual(result.length, 2);
+        assert.strictEqual(result[0].reason, 'doom_rising');
+        assert.strictEqual(result[1].reason, 'doom_critical');
+      });
+
+      it("returns empty on doom decrease", async function () {
+        const { checkDoomMilestones } = await import("../imports/game/stateMachine.js");
+        const result = checkDoomMilestones(7, 4, 3);
+        assert.strictEqual(result.length, 0);
+      });
+
+      it("returns empty when doom unchanged", async function () {
+        const { checkDoomMilestones } = await import("../imports/game/stateMachine.js");
+        const result = checkDoomMilestones(5, 5, 3);
+        assert.strictEqual(result.length, 0);
+      });
+
+      it("returns empty when already above milestone", async function () {
+        const { checkDoomMilestones } = await import("../imports/game/stateMachine.js");
+        const result = checkDoomMilestones(6, 8, 3);
+        assert.strictEqual(result.length, 0);
+      });
+    });
+
     // ---- 14. Game Methods — integration ----
 
     describe("Game Methods — integration", function () {

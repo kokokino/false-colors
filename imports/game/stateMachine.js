@@ -21,6 +21,19 @@ const COOK_STARTING_MEALS = 5;
 // Probability that a phantom exists (80% chance)
 const PHANTOM_PROBABILITY = 0.8;
 
+// Check doom milestones and return any triggered skull objects.
+// Only fires on upward crossings — doom decreases do not un-trigger.
+export function checkDoomMilestones(oldDoom, newDoom, currentRound) {
+  const milestones = [];
+  if (oldDoom < 5 && newDoom >= 5) {
+    milestones.push({ round: currentRound, reason: 'doom_rising', description: 'Doom rising' });
+  }
+  if (oldDoom < 10 && newDoom >= 10) {
+    milestones.push({ round: currentRound, reason: 'doom_critical', description: 'Doom critical' });
+  }
+  return milestones;
+}
+
 // Start a game from a room — creates Games doc, assigns characters, fills AI seats
 export async function startGame(roomId, totalPlayers) {
   // Atomic guard: only start if room is still in WAITING or STARTING state
@@ -267,13 +280,8 @@ async function runThreatPhase(gameId) {
   const newDoom = Math.min(game.doomLevel + doomFromThreats, game.doomThreshold + 10);
 
   // Doom milestone skulls
-  const oldDoom = game.doomLevel;
-  if (oldDoom < 5 && newDoom >= 5) {
-    newSkulls.push({ round: game.currentRound, reason: 'doom_rising', description: 'Doom rising' });
-  }
-  if (oldDoom < 10 && newDoom >= 10) {
-    newSkulls.push({ round: game.currentRound, reason: 'doom_critical', description: 'Doom critical' });
-  }
+  const milestoneSkulls = checkDoomMilestones(game.doomLevel, newDoom, game.currentRound);
+  newSkulls.push(...milestoneSkulls);
 
   const updateOp = {
     $set: {
@@ -352,9 +360,15 @@ export async function resolveTollPhase(gameId) {
     const allSubmissions = [...game.tollSubmissions, ...defaultSubmissions];
     const updates = resolveTolls(game, allSubmissions);
 
-    await Games.updateAsync(gameId, {
-      $set: { ...updates, updatedAt: new Date() },
-    });
+    // Check doom milestones from toll-induced doom increase
+    const tollMilestoneSkulls = checkDoomMilestones(game.doomLevel, updates.doomLevel, game.currentRound);
+
+    const tollUpdateOp = { $set: { ...updates, updatedAt: new Date() } };
+    if (tollMilestoneSkulls.length > 0) {
+      tollUpdateOp.$push = { skulls: { $each: tollMilestoneSkulls } };
+    }
+
+    await Games.updateAsync(gameId, tollUpdateOp);
 
     // Update AI suspicion based on toll choices
     updateSuspicionFromTolls(game, allSubmissions);
@@ -584,10 +598,16 @@ export async function resolveAccusationPhase(gameId) {
       updateOp.$push = { goldCoins: result.goldCoin };
     }
     if (result.skull) {
+      const allSkulls = [result.skull];
+      // Check doom milestones from wrong accusation doom increase
+      if (result.doomChange > 0) {
+        const accusationMilestones = checkDoomMilestones(game.doomLevel, setOp.doomLevel, game.currentRound);
+        allSkulls.push(...accusationMilestones);
+      }
       if (!updateOp.$push) {
         updateOp.$push = {};
       }
-      updateOp.$push.skulls = result.skull;
+      updateOp.$push.skulls = { $each: allSkulls };
     }
 
     await Games.updateAsync(gameId, updateOp);
