@@ -100,7 +100,7 @@ export const GameBoard = {
     // Game over screen
     if (game.currentPhase === 'finished') {
       return m('div.game-container', [
-        m(GameOverScreen, { game }),
+        m(GameOverScreen, { game, myUserId: Meteor.userId() }),
       ]);
     }
 

@@ -24,10 +24,11 @@ const roleNames = {
 };
 
 // Game over screen with scoring
-// Attrs: game
+// Attrs: game, myUserId
 export const GameOverScreen = {
   view(vnode) {
     const game = vnode.attrs.game;
+    const myUserId = vnode.attrs.myUserId;
     const isVictory = game.result === 'loyal_win';
     const coins = (game.goldCoins || []).length;
     const skulls = (game.skulls || []).length;
@@ -72,18 +73,25 @@ export const GameOverScreen = {
         ]),
 
         m('h3', 'Crew Manifest'),
-        m('ul.crew-manifest', game.players.map(player =>
-          m('li', {
+        m('ul.crew-manifest', game.players.map(player => {
+          const isMe = player.userId === myUserId;
+          const classes = [
+            player.alignment === 'phantom' ? 'phantom-reveal' : '',
+            isMe ? 'is-self' : '',
+          ].filter(Boolean).join(' ');
+
+          return m('li', {
             key: player.seatIndex,
-            class: player.alignment === 'phantom' ? 'phantom-reveal' : '',
+            class: classes,
           }, [
             m('strong', player.displayName),
+            isMe ? m('mark.you-badge', 'YOU') : null,
             m('span', ` — ${roleNames[player.role] || player.role}`),
             player.alignment === 'phantom'
               ? m('mark', ' Phantom')
               : m('small', ' Loyal'),
-          ])
-        )),
+          ]);
+        })),
 
         m('button', {
           onclick() {
