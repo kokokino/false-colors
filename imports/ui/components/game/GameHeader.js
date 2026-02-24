@@ -17,6 +17,7 @@ const phaseLabels = {
 export const GameHeader = {
   view(vnode) {
     const game = vnode.attrs.game;
+    const myPlayer = vnode.attrs.myPlayer;
     if (!game) {
       return null;
     }
@@ -30,6 +31,13 @@ export const GameHeader = {
         m('span.phase-display', phaseLabels[game.currentPhase] || game.currentPhase),
         game.phaseDeadline && game.currentPhase !== 'finished'
           ? m(CountdownTimer, { deadline: game.phaseDeadline })
+          : null,
+        myPlayer
+          ? m('span.player-identity', [
+              'You are ',
+              m('strong', myPlayer.displayName),
+              ` the ${myPlayer.role}`,
+            ])
           : null,
       ]),
       m(DoomTracker, { doomLevel: game.doomLevel, doomThreshold: game.doomThreshold }),

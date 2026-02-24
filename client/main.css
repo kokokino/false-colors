@@ -302,6 +302,18 @@ footer {
 .crew-member.is-self {
   background: var(--pico-card-background-color);
   border-radius: var(--pico-border-radius);
+  border-left: 3px solid var(--pico-primary);
+}
+
+.you-badge {
+  font-size: 0.7em;
+  padding: 0.1em 0.4em;
+  margin-left: 0.5em;
+}
+
+.player-identity {
+  font-size: 0.9em;
+  white-space: nowrap;
 }
 
 .crew-info {

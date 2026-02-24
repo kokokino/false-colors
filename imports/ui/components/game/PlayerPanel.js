@@ -20,6 +20,7 @@ export const PlayerPanel = {
           m('div.crew-info', [
             m('strong', player.displayName),
             m('small.role-badge', player.role),
+            player.seatIndex === currentSeat ? m('mark.you-badge', 'YOU') : null,
             player.phantomRevealed ? m('mark', 'PHANTOM') : null,
           ]),
           m('div.crew-stats', [

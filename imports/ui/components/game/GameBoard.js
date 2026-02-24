@@ -105,7 +105,7 @@ export const GameBoard = {
     }
 
     return m('div.game-container', [
-      m(GameHeader, { game }),
+      m(GameHeader, { game, myPlayer }),
       m(GuideTooltip, { phase: game.currentPhase, expertMode }),
 
       m('div.game-layout', [
