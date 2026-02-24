@@ -847,25 +847,37 @@ async function startNextRound(gameId, expectedPhase) {
 async function finishGame(gameId, result, reason) {
   clearPhaseTimer(gameId);
 
+  const game = await Games.findOneAsync(gameId);
+  if (!game) {
+    return;
+  }
+
+  // Unmask all phantoms so observeChanges detects a real diff on the players array
+  const revealedPlayers = game.players.map(p => {
+    if (p.alignment === 'phantom' && !p.phantomRevealed) {
+      return { ...p, phantomRevealed: true };
+    }
+    return p;
+  });
+
   const now = new Date();
   await Games.updateAsync(gameId, {
     $set: {
       currentPhase: GamePhase.FINISHED,
       result,
       endReason: reason,
+      players: revealedPlayers,
       updatedAt: now,
     },
   });
 
-  // Also update the room
-  const game = await Games.findOneAsync(gameId);
-  if (game) {
+  if (game.roomId) {
     await GameRooms.updateAsync(game.roomId, {
       $set: { status: RoomStatus.FINISHED, finishedAt: now },
     });
   }
 
-  await appendLog(gameId, game?.currentRound || 0, GamePhase.FINISHED, 'game_ended', {
+  await appendLog(gameId, game.currentRound || 0, GamePhase.FINISHED, 'game_ended', {
     result,
     reason,
   });

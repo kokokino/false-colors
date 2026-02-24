@@ -6,6 +6,9 @@ import { GameConstants } from '../../../lib/collections/games.js';
 // Lobby waiting screen — shows player list and countdown to game start
 // Attrs: room (reactive GameRooms document)
 export const LobbyWaiting = {
+  oninit() {
+    this.localExpert = null;
+  },
   view(vnode) {
     const room = vnode.attrs.room;
     if (!room) {
@@ -35,17 +38,25 @@ export const LobbyWaiting = {
 
       m('p.muted', 'AI crew members will fill empty seats when the countdown ends.'),
 
-      m('label', [
-        m('input', {
-          type: 'checkbox',
-          role: 'switch',
-          checked: Meteor.user()?.isExpertPlayer || false,
-          onchange(e) {
-            Meteor.callAsync('user.setExpertMode', e.target.checked);
-          },
-        }),
-        ' Expert Mode (shorter timers, no guide tooltips)',
-      ]),
+      (() => {
+        const serverExpert = Meteor.user()?.isExpertPlayer || false;
+        if (this.localExpert !== null && this.localExpert === serverExpert) {
+          this.localExpert = null;
+        }
+        const expertChecked = this.localExpert !== null ? this.localExpert : serverExpert;
+        return m('label', [
+          m('input', {
+            type: 'checkbox',
+            role: 'switch',
+            checked: expertChecked,
+            onchange: (e) => {
+              this.localExpert = e.target.checked;
+              Meteor.callAsync('user.setExpertMode', e.target.checked);
+            },
+          }),
+          ' Expert Mode (shorter timers, no guide tooltips)',
+        ]);
+      })(),
 
       m('button.secondary.outline', {
         onclick() {

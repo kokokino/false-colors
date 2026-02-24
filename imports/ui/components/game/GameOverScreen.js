@@ -3,7 +3,7 @@ import m from 'mithril';
 const resultMessages = {
   loyal_win: 'The loyal crew prevails!',
   phantom_win: 'The phantom has doomed the ship!',
-  doom_loss: 'The doom has consumed the vessel. All is lost.',
+  doom_loss: 'Doom has consumed the vessel. All is lost.',
   crew_loss: 'You reached the Sunken Crown, but the voyage cost too much.',
 };
 
@@ -37,7 +37,11 @@ export const GameOverScreen = {
         m('header', [
           m('h2', isVictory ? 'Victory' : 'Defeat'),
         ]),
-        m('p.result-text', resultMessages[game.result] || 'The game has ended.'),
+        m('p.result-text', resultMessages[
+          (game.result === 'phantom_win' && !game.players?.some(p => p.alignment === 'phantom'))
+            ? 'doom_loss'
+            : game.result
+        ] || 'The game has ended.'),
         m('p.reason-text', reasonMessages[game.endReason] || ''),
 
         m('div.final-stats', [
