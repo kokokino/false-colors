@@ -36,7 +36,16 @@ export const GameHeader = {
           ? m('span.player-identity', [
               'You are ',
               m('strong', myPlayer.displayName),
-              ` the ${myPlayer.role}`,
+              ` the ${myPlayer.role} `,
+              m('a.view-card-link', {
+                href: '#',
+                onclick: (e) => {
+                  e.preventDefault();
+                  if (vnode.attrs.onViewCard) {
+                    vnode.attrs.onViewCard();
+                  }
+                },
+              }, '[Your Card]'),
             ])
           : null,
       ]),

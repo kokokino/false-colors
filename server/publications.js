@@ -114,13 +114,13 @@ Meteor.publish('game', async function(gameId) {
       if (fields.currentPhase) {
         currentPhase = fields.currentPhase;
       }
-      sub.added('games', id, stripSecrets(fields, currentPhase, isLookout));
+      sub.added('games', id, stripSecrets(fields, currentPhase, isLookout, sub.userId));
     },
     changed(id, fields) {
       if (fields.currentPhase) {
         currentPhase = fields.currentPhase;
       }
-      sub.changed('games', id, stripSecrets(fields, currentPhase, isLookout));
+      sub.changed('games', id, stripSecrets(fields, currentPhase, isLookout, sub.userId));
     },
     removed(id) {
       sub.removed('games', id);
@@ -142,7 +142,7 @@ Meteor.publish('game', async function(gameId) {
 });
 
 // Strip secret fields from game documents before publishing
-function stripSecrets(fields, currentPhase, isLookout) {
+function stripSecrets(fields, currentPhase, isLookout, subscriberUserId) {
   const safe = { ...fields };
 
   // Strip secret player fields
@@ -153,8 +153,12 @@ function stripSecrets(fields, currentPhase, isLookout) {
         const { isAI, ...publicFields } = p;
         return publicFields;
       }
-      // During game: reveal alignment for phantom-revealed players
+      // During game: player always sees their own alignment
       const { isAI, ...withAlignment } = p;
+      if (p.userId === subscriberUserId) {
+        return withAlignment;
+      }
+      // Reveal alignment for phantom-revealed players
       if (p.phantomRevealed) {
         return withAlignment;
       }

@@ -6,6 +6,7 @@ export const PlayerPanel = {
   view(vnode) {
     const players = vnode.attrs.players || [];
     const currentSeat = vnode.attrs.currentSeat;
+    const onViewPlayer = vnode.attrs.onViewPlayer;
 
     return m('div.player-panel', [
       m('h3', 'Crew'),
@@ -16,6 +17,11 @@ export const PlayerPanel = {
             player.seatIndex === currentSeat ? 'is-self' : '',
             player.phantomRevealed ? 'phantom-revealed' : '',
           ].filter(Boolean).join(' '),
+          onclick: () => {
+            if (onViewPlayer) {
+              onViewPlayer(player);
+            }
+          },
         }, [
           m('div.crew-info', [
             m('strong', player.displayName),

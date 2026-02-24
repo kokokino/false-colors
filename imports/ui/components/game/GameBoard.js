@@ -10,6 +10,7 @@ import { GameLogPanel } from './GameLogPanel.js';
 import { GameOverScreen } from './GameOverScreen.js';
 import { GuideTooltip } from './GuideTooltip.js';
 import { GameIntro } from './GameIntro.js';
+import { CharacterCard } from './CharacterCard.js';
 import { GameHistory } from './GameHistory.js';
 
 // Main game board component — subscribes to game data and orchestrates sub-components
@@ -23,6 +24,8 @@ export const GameBoard = {
     this.computations = [];
     this.heartbeatInterval = null;
     this.showIntro = true;
+    this.showCharacterCard = true;
+    this.viewingPlayer = null;
   },
 
   oncreate(vnode) {
@@ -97,6 +100,17 @@ export const GameBoard = {
       });
     }
 
+    // Character card auto-show after intro (round 1 only)
+    if (this.showCharacterCard && !this.showIntro && game.currentRound === 1 && myPlayer) {
+      return m(CharacterCard, {
+        player: myPlayer,
+        isSelf: true,
+        onDismiss: () => {
+          this.showCharacterCard = false;
+        },
+      });
+    }
+
     // Game over screen
     if (game.currentPhase === 'finished') {
       return m('div.game-container', [
@@ -104,8 +118,28 @@ export const GameBoard = {
       ]);
     }
 
+    // Character card overlay (re-open own card or view another player's card)
+    const cardOverlay = this.showCharacterCard && myPlayer
+      ? m(CharacterCard, {
+          player: myPlayer,
+          isSelf: true,
+          onDismiss: () => { this.showCharacterCard = false; },
+        })
+      : this.viewingPlayer
+        ? m(CharacterCard, {
+            player: this.viewingPlayer,
+            isSelf: false,
+            onDismiss: () => { this.viewingPlayer = null; },
+          })
+        : null;
+
     return m('div.game-container', [
-      m(GameHeader, { game, myPlayer }),
+      cardOverlay,
+      m(GameHeader, {
+        game,
+        myPlayer,
+        onViewCard: () => { this.showCharacterCard = true; },
+      }),
       m(GuideTooltip, { phase: game.currentPhase, expertMode }),
 
       m('div.game-layout', [
@@ -118,6 +152,7 @@ export const GameBoard = {
           m(PlayerPanel, {
             players: game.players,
             currentSeat: myPlayer?.seatIndex,
+            onViewPlayer: (player) => { this.viewingPlayer = player; },
           }),
           m(GameHistory, { logs: this.logs, game }),
           m(GameLogPanel, { logs: this.logs }),

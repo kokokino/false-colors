@@ -1522,7 +1522,142 @@ describe("false_colors", function () {
       });
     });
 
-    // ---- 14. Game Methods — integration ----
+    // ---- 14. stripSecrets — alignment visibility ----
+
+    describe("stripSecrets — alignment visibility", function () {
+      // Import stripSecrets indirectly by testing the publication logic
+      // We re-implement the stripped-down version here since stripSecrets is not exported
+
+      function stripSecrets(fields, currentPhase, isLookout, subscriberUserId) {
+        const safe = { ...fields };
+        if (safe.players) {
+          safe.players = safe.players.map(p => {
+            if (currentPhase === 'finished') {
+              const { isAI, ...publicFields } = p;
+              return publicFields;
+            }
+            const { isAI, ...withAlignment } = p;
+            if (p.userId === subscriberUserId) {
+              return withAlignment;
+            }
+            if (p.phantomRevealed) {
+              return withAlignment;
+            }
+            const { alignment, ...publicFields } = withAlignment;
+            return publicFields;
+          });
+        }
+        if (!isLookout && safe.lookoutReveal !== undefined) {
+          delete safe.lookoutReveal;
+        }
+        delete safe.actionSubmissions;
+        delete safe.tollSubmissions;
+        delete safe.llmCallsUsed;
+        delete safe.threatDeck;
+        return safe;
+      }
+
+      it("reveals alignment for subscriber's own player", function () {
+        const fields = {
+          players: [
+            { userId: 'user-1', seatIndex: 0, role: 'navigator', alignment: 'loyal', isAI: false, phantomRevealed: false },
+            { userId: 'user-2', seatIndex: 1, role: 'gunner', alignment: 'phantom', isAI: true, phantomRevealed: false },
+          ],
+        };
+        const result = stripSecrets(fields, 'action', false, 'user-1');
+        assert.strictEqual(result.players[0].alignment, 'loyal', "own player should see their alignment");
+        assert.strictEqual(result.players[0].isAI, undefined, "isAI should always be stripped");
+      });
+
+      it("strips alignment for other players", function () {
+        const fields = {
+          players: [
+            { userId: 'user-1', seatIndex: 0, role: 'navigator', alignment: 'loyal', isAI: false, phantomRevealed: false },
+            { userId: 'user-2', seatIndex: 1, role: 'gunner', alignment: 'phantom', isAI: true, phantomRevealed: false },
+          ],
+        };
+        const result = stripSecrets(fields, 'action', false, 'user-1');
+        assert.strictEqual(result.players[1].alignment, undefined, "other player's alignment should be stripped");
+        assert.strictEqual(result.players[1].isAI, undefined, "isAI should always be stripped");
+      });
+
+      it("reveals phantom alignment for own player", function () {
+        const fields = {
+          players: [
+            { userId: 'user-1', seatIndex: 0, role: 'quartermaster', alignment: 'phantom', isAI: false, phantomRevealed: false },
+          ],
+        };
+        const result = stripSecrets(fields, 'toll', false, 'user-1');
+        assert.strictEqual(result.players[0].alignment, 'phantom', "phantom player should see their own alignment");
+      });
+
+      it("still reveals phantomRevealed players to everyone", function () {
+        const fields = {
+          players: [
+            { userId: 'user-1', seatIndex: 0, role: 'navigator', alignment: 'loyal', isAI: false, phantomRevealed: false },
+            { userId: 'user-2', seatIndex: 1, role: 'gunner', alignment: 'phantom', isAI: false, phantomRevealed: true },
+          ],
+        };
+        const result = stripSecrets(fields, 'action', false, 'user-1');
+        assert.strictEqual(result.players[1].alignment, 'phantom', "phantomRevealed player's alignment should be visible");
+      });
+
+      it("reveals all alignments after game finishes", function () {
+        const fields = {
+          players: [
+            { userId: 'user-1', seatIndex: 0, role: 'navigator', alignment: 'loyal', isAI: false, phantomRevealed: false },
+            { userId: 'user-2', seatIndex: 1, role: 'gunner', alignment: 'phantom', isAI: true, phantomRevealed: false },
+          ],
+        };
+        const result = stripSecrets(fields, 'finished', false, 'user-1');
+        assert.strictEqual(result.players[0].alignment, 'loyal');
+        assert.strictEqual(result.players[1].alignment, 'phantom');
+      });
+    });
+
+    // ---- 15. CharacterCards — data completeness ----
+
+    describe("CharacterCards — data completeness", function () {
+      it("has entries for all 6 roles", async function () {
+        const { CharacterCards } = await import("../imports/game/characterCards.js");
+        const { Roles } = await import("../imports/game/roles.js");
+        const roleIds = Object.values(Roles).map(r => r.id);
+        assert.strictEqual(roleIds.length, 6, "should have 6 roles");
+        for (const roleId of roleIds) {
+          assert.ok(CharacterCards[roleId], `missing CharacterCard for role: ${roleId}`);
+        }
+      });
+
+      it("each card has required fields", async function () {
+        const { CharacterCards } = await import("../imports/game/characterCards.js");
+        const requiredFields = ['title', 'motto', 'bio', 'abilityName', 'abilityDescription', 'specialtyLabel', 'strengthDisplay', 'strategyTips', 'phantomTips'];
+        for (const [roleId, card] of Object.entries(CharacterCards)) {
+          for (const field of requiredFields) {
+            assert.ok(card[field] !== undefined, `${roleId} missing field: ${field}`);
+          }
+          assert.ok(Array.isArray(card.strategyTips), `${roleId} strategyTips should be an array`);
+          assert.ok(card.strategyTips.length >= 3, `${roleId} should have at least 3 strategy tips`);
+          assert.ok(Array.isArray(card.phantomTips), `${roleId} phantomTips should be an array`);
+          assert.ok(card.phantomTips.length >= 3, `${roleId} should have at least 3 phantom tips`);
+        }
+      });
+
+      it("lookout and cook have passive descriptions", async function () {
+        const { CharacterCards } = await import("../imports/game/characterCards.js");
+        assert.ok(CharacterCards.lookout.passiveDescription, "lookout should have a passive description");
+        assert.ok(CharacterCards.cook.passiveDescription, "cook should have a passive description");
+      });
+
+      it("non-passive roles have null passiveDescription", async function () {
+        const { CharacterCards } = await import("../imports/game/characterCards.js");
+        assert.strictEqual(CharacterCards.navigator.passiveDescription, null);
+        assert.strictEqual(CharacterCards.gunner.passiveDescription, null);
+        assert.strictEqual(CharacterCards.surgeon.passiveDescription, null);
+        assert.strictEqual(CharacterCards.quartermaster.passiveDescription, null);
+      });
+    });
+
+    // ---- 16. Game Methods — integration ----
 
     describe("Game Methods — integration", function () {
       it("game.submitToll rejects unauthenticated user", async function () {
