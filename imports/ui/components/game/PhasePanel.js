@@ -37,7 +37,7 @@ export const PhasePanel = {
         return m(ActionSelection, { game, myPlayer, lookoutReveal: game.lookoutReveal });
 
       case 'accusation':
-        return m(AccusationPanel, { game, myPlayer });
+        return m(AccusationPanel, { game, myPlayer, expertMode: game.expertMode });
 
       case 'round_end':
         return m(RoundEndSummary, { game, myPlayer });
