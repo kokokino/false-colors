@@ -29,7 +29,7 @@ export const LobbyWaiting = {
       m('ul.player-list', room.players.map(player =>
         m('li', { key: player.userId }, [
           m('strong', player.username),
-          player.userId === room.hostId ? m('small', ' (Captain)') : null,
+          player.userId === room.hostId ? m('small', ' (Host)') : null,
         ])
       )),
 

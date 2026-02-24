@@ -530,3 +530,27 @@ footer {
 .lobby-waiting .muted {
   margin-bottom: 1rem;
 }
+
+/* Curse visibility */
+.curse-badge {
+  color: #9b59b6;
+  font-size: 0.7rem;
+  border: 1px solid #9b59b6;
+  border-radius: 0.25rem;
+  padding: 0.05rem 0.3rem;
+  white-space: nowrap;
+}
+
+.curse-drawn-notice {
+  padding: 0.25rem 0;
+  color: #9b59b6;
+  font-size: 0.85rem;
+}
+
+.curse-drawn-self {
+  background: var(--pico-card-background-color);
+  padding: 0.5rem;
+  border-left: 3px solid #9b59b6;
+  border-radius: var(--pico-border-radius);
+  margin-top: 0.25rem;
+}

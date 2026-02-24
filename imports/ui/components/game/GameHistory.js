@@ -64,7 +64,12 @@ function formatLogEntry(log) {
       return `Threats: ${(data.newThreats || []).join(', ')} (+${data.doomAdded || 0} doom)`;
     case 'tolls_resolved':
       if (data.resolveCount !== undefined) {
-        return `Tolls: ${data.resolveCount} resolve, ${data.doomCount} doom, ${data.curseCount} curse`;
+        let tollText = `Tolls: ${data.resolveCount} resolve, ${data.doomCount} doom, ${data.curseCount} curse`;
+        if (data.curseDetails && data.curseDetails.length > 0) {
+          const curseNames = data.curseDetails.map(cd => cd.curseName).join(', ');
+          tollText += ` (${curseNames})`;
+        }
+        return tollText;
       }
       return `Tolls resolved (${data.submissions || 0} submissions)`;
     case 'actions_resolved':

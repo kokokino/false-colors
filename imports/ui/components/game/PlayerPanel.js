@@ -25,7 +25,9 @@ export const PlayerPanel = {
           m('div.crew-stats', [
             m('span', `Resolve: ${player.resolve}`),
             player.curses && player.curses.length > 0
-              ? m('span.curse-count', `Curses: ${player.curses.length}`)
+              ? player.curses.map(curse =>
+                  m('span.curse-badge', { key: curse.id, title: curse.description }, curse.name)
+                )
               : null,
             !player.hasNextAction
               ? m('span.no-action', 'Action lost')

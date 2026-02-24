@@ -11,7 +11,7 @@ const HomeContent = {
   view() {
     return m('div', [
       m('h1', 'False Colors'),
-      m('p', 'A cooperative social deduction game for 4-6 players. Crew a ghost ship through cursed waters — but one among you may be a phantom traitor.'),
+      m('p', 'A cooperative social deduction game for 6 players. Crew a ghost ship through cursed waters — but one among you may be a phantom traitor.'),
 
       m('article', [
         m('header', m('h2', 'Phantom Tides')),

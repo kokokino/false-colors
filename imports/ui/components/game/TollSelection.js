@@ -6,6 +6,7 @@ import { Meteor } from 'meteor/meteor';
 export const TollSelection = {
   oninit() {
     this.submitted = false;
+    this.submittedChoice = null;
     this.autoSubmitting = false;
     this.error = null;
   },
@@ -30,9 +31,14 @@ export const TollSelection = {
     }
 
     if (this.submitted) {
+      const waitingMessages = {
+        resolve: 'You sacrificed resolve. Waiting for other crew members...',
+        doom: 'You added doom. Waiting for other crew members...',
+        curse: 'You drew a curse — it will be revealed when all tolls resolve. Waiting for other crew members...',
+      };
       return m('div.phase-content.toll-selection', [
         m('h3', 'Pay the Toll'),
-        m('p', 'Your toll has been paid. Waiting for other crew members...'),
+        m('p', waitingMessages[this.submittedChoice] || 'Your toll has been paid. Waiting for other crew members...'),
       ]);
     }
 
@@ -76,6 +82,7 @@ export const TollSelection = {
     try {
       await Meteor.callAsync('game.submitToll', gameId, choice);
       this.submitted = true;
+      this.submittedChoice = choice;
     } catch (error) {
       this.error = error.reason || error.message;
     }

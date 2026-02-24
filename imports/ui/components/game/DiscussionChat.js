@@ -38,6 +38,22 @@ export const DiscussionChat = {
       // Show toll aggregate at top
       tollAgg ? m('div.toll-summary', [
         m('small', `This round's tolls: ${tollAgg.resolveCount} sacrificed resolve, ${tollAgg.doomCount} chose doom, ${tollAgg.curseCount} drew a curse.`),
+        // Show curse details
+        tollAgg.curseDetails && tollAgg.curseDetails.length > 0 ? tollAgg.curseDetails.map(cd => {
+          const isSelf = cd.seatIndex === myPlayer.seatIndex;
+          const cursePlayer = game.players.find(p => p.seatIndex === cd.seatIndex);
+          const playerName = cursePlayer ? cursePlayer.displayName : 'Unknown';
+          if (isSelf) {
+            return m('div.curse-drawn-self', { key: cd.curseId }, [
+              m('strong', `You drew: ${cd.curseName}`),
+              m('br'),
+              m('small', cd.curseDescription),
+            ]);
+          }
+          return m('div.curse-drawn-notice', { key: `${cd.seatIndex}-${cd.curseId}` },
+            `${playerName} drew a curse: ${cd.curseName}`
+          );
+        }) : null,
       ]) : null,
 
       m('div.discussion-messages', roundMessages.map(msg =>

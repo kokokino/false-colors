@@ -1,6 +1,6 @@
 # False Colors
 
-A cooperative social deduction game for 4-6 players, built as a spoke app in the [Kokokino](https://www.kokokino.com) ecosystem.
+A cooperative social deduction game for 6 players, built as a spoke app in the [Kokokino](https://www.kokokino.com) ecosystem.
 
 ## Overview
 

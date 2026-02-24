@@ -13,6 +13,7 @@ function getRoleById(roleId) {
 export function resolveTolls(game, submissions) {
   let doomIncrease = 0;
   const updatedPlayers = [...game.players.map(p => ({ ...p }))];
+  const curseDetails = [];
 
   for (const sub of submissions) {
     const playerIndex = updatedPlayers.findIndex(p => p.seatIndex === sub.seatIndex);
@@ -49,6 +50,7 @@ export function resolveTolls(game, submissions) {
           ...player,
           curses: [...player.curses, curse],
         };
+        curseDetails.push({ seatIndex: sub.seatIndex, curseName: curse.name, curseId: curse.id, curseDescription: curse.description });
         if (hasMadness) {
           doomIncrease += 1;
         }
@@ -73,7 +75,7 @@ export function resolveTolls(game, submissions) {
   return {
     players: updatedPlayers,
     doomLevel: Math.min(game.doomLevel + doomIncrease, game.doomThreshold + 10),
-    tollAggregate: { resolveCount, doomCount, curseCount },
+    tollAggregate: { resolveCount, doomCount, curseCount, curseDetails },
   };
 }
 
