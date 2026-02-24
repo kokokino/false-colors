@@ -34,9 +34,6 @@ export function resolveTolls(game, submissions) {
             resolve: player.resolve - 1,
           };
         }
-        if (hasMadness) {
-          doomIncrease += 1;
-        }
         break;
       case 'doom':
         doomIncrease += 1;
@@ -45,7 +42,7 @@ export function resolveTolls(game, submissions) {
         }
         break;
       case 'curse':
-        const curse = drawCurse();
+        const curse = drawCurse(player.curses);
         updatedPlayers[playerIndex] = {
           ...player,
           curses: [...player.curses, curse],

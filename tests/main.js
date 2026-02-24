@@ -274,6 +274,34 @@ describe("false_colors", function () {
         const allNames = Curses.map(c => c.name);
         assert.ok(!allNames.includes('MODIFIED'), "modifying drawn curse should not affect Curses array");
       });
+
+      it("drawCurse avoids duplicates when player has existing curses", async function () {
+        const { Curses, drawCurse } = await import("../imports/game/curses.js");
+        // Give the player 5 of the 6 curses
+        const existingCurses = Curses.slice(0, 5).map(c => ({ ...c }));
+        const remaining = Curses[5];
+        // Draw 20 times — should always get the one remaining curse
+        for (let i = 0; i < 20; i++) {
+          const drawn = drawCurse(existingCurses);
+          assert.strictEqual(drawn.id, remaining.id, `expected ${remaining.id}, got ${drawn.id}`);
+        }
+      });
+
+      it("drawCurse never returns a curse the player already has", async function () {
+        const { Curses, drawCurse } = await import("../imports/game/curses.js");
+        const existingCurse = { ...Curses[0] };
+        for (let i = 0; i < 30; i++) {
+          const drawn = drawCurse([existingCurse]);
+          assert.notStrictEqual(drawn.id, existingCurse.id, "should not draw a duplicate curse");
+        }
+      });
+
+      it("drawCurse falls back to any curse when player has all 6", async function () {
+        const { Curses, drawCurse } = await import("../imports/game/curses.js");
+        const allCurses = Curses.map(c => ({ ...c }));
+        const drawn = drawCurse(allCurses);
+        assert.ok(drawn.id, "should still return a curse even when all are owned");
+      });
     });
 
     // ---- 4. Resolution ----
@@ -312,7 +340,7 @@ describe("false_colors", function () {
         assert.ok(result.players[0].curses[0].id, "curse should have an id");
       });
 
-      it("sea madness curse adds +1 doom to any toll choice", async function () {
+      it("sea madness curse adds +1 doom on doom and curse tolls, not resolve", async function () {
         const { resolveTolls } = await import("../imports/game/resolution.js");
         const madnessCurse = { id: 'sea_madness', name: 'Sea Madness', effect: 'tollPenalty', value: 1, description: 'test' };
         const game = makeGame({
@@ -321,8 +349,15 @@ describe("false_colors", function () {
           ],
           doomLevel: 0,
         });
-        const result = resolveTolls(game, [{ seatIndex: 0, choice: 'doom' }]);
-        assert.strictEqual(result.doomLevel, 2);
+        // Doom toll: base 1 + madness 1 = 2
+        const doomResult = resolveTolls(game, [{ seatIndex: 0, choice: 'doom' }]);
+        assert.strictEqual(doomResult.doomLevel, 2);
+        // Curse toll: madness adds 1 doom
+        const curseResult = resolveTolls(game, [{ seatIndex: 0, choice: 'curse' }]);
+        assert.strictEqual(curseResult.doomLevel, 1);
+        // Resolve toll: no extra doom from madness
+        const resolveResult = resolveTolls(game, [{ seatIndex: 0, choice: 'resolve' }]);
+        assert.strictEqual(resolveResult.doomLevel, 0);
       });
 
       it("multiple submissions process correctly", async function () {

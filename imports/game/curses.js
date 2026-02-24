@@ -21,7 +21,7 @@ export const Curses = [
     name: 'Sea Madness',
     effect: 'tollPenalty',
     value: 1,
-    description: 'Your toll costs 1 additional doom.',
+    description: 'Choosing doom or curse as your toll costs 1 additional doom.',
   },
   {
     id: 'phantom_whisper',
@@ -46,8 +46,12 @@ export const Curses = [
   },
 ];
 
-// Draw a random curse from the pool
-export function drawCurse() {
-  const index = Math.floor(Math.random() * Curses.length);
-  return { ...Curses[index] };
+// Draw a random curse from the pool, avoiding duplicates if possible
+export function drawCurse(existingCurses = []) {
+  const existingIds = new Set(existingCurses.map(c => c.id));
+  const available = Curses.filter(c => !existingIds.has(c.id));
+  // If player somehow has all 6 curses, draw a random one (allow duplicate)
+  const pool = available.length > 0 ? available : Curses;
+  const index = Math.floor(Math.random() * pool.length);
+  return { ...pool[index] };
 }
