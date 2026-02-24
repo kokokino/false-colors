@@ -9,7 +9,7 @@
       "maxPlayers": 6,
       "discussionTimeSec": 30,
       "roundCount": 10,
-      "doomThreshold": 15
+      "doomThreshold": 30
     }
   },
   "private": {

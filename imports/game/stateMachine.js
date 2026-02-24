@@ -13,7 +13,7 @@ import { registerResolver } from './resolverRegistry.js';
 // In-memory lock to prevent concurrent phase resolution (race between timer, AI, and human callers)
 const resolveLocks = new Map();
 
-const DEFAULT_DOOM_THRESHOLD = 15;
+const DEFAULT_DOOM_THRESHOLD = 30;
 const DEFAULT_MAX_ROUNDS = 10;
 const DEFAULT_STARTING_RESOLVE = 3;
 const MAX_RESOLVE = 5;

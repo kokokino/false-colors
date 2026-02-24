@@ -149,7 +149,7 @@ describe("false_colors", function () {
           { seatIndex: 3, resolve: 3, curses: [], role: 'quartermaster', alignment: 'phantom', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Dave' },
         ],
         doomLevel: 0,
-        doomThreshold: 15,
+        doomThreshold: 30,
         activeThreats: [],
         threatDeck: [],
         currentRound: 1,
@@ -340,9 +340,9 @@ describe("false_colors", function () {
 
       it("doom is capped at threshold + 10", async function () {
         const { resolveTolls } = await import("../imports/game/resolution.js");
-        const game = makeGame({ doomLevel: 24, doomThreshold: 15 });
+        const game = makeGame({ doomLevel: 39, doomThreshold: 30 });
         const result = resolveTolls(game, [{ seatIndex: 0, choice: 'doom' }]);
-        assert.strictEqual(result.doomLevel, 25);
+        assert.strictEqual(result.doomLevel, 40);
       });
 
       it("returns tollAggregate with correct counts", async function () {
@@ -550,7 +550,7 @@ describe("false_colors", function () {
       it("doom >= threshold with phantom → PHANTOM_WIN", async function () {
         const { checkGameEnd } = await import("../imports/game/resolution.js");
         const { GameResult } = await import("../imports/lib/collections/games.js");
-        const game = makeGame({ doomLevel: 15, doomThreshold: 15 });
+        const game = makeGame({ doomLevel: 30, doomThreshold: 30 });
         const result = checkGameEnd(game);
         assert.strictEqual(result.ended, true);
         assert.strictEqual(result.result, GameResult.PHANTOM_WIN);
@@ -561,8 +561,8 @@ describe("false_colors", function () {
         const { checkGameEnd } = await import("../imports/game/resolution.js");
         const { GameResult } = await import("../imports/lib/collections/games.js");
         const game = makeGame({
-          doomLevel: 15,
-          doomThreshold: 15,
+          doomLevel: 30,
+          doomThreshold: 30,
           players: [
             { seatIndex: 0, resolve: 3, curses: [], role: 'navigator', alignment: 'loyal', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Alice' },
             { seatIndex: 1, resolve: 3, curses: [], role: 'gunner', alignment: 'loyal', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Bob' },
@@ -740,7 +740,7 @@ describe("false_colors", function () {
         const { chooseLoyalToll } = await import("../imports/game/ai/tollStrategy.js");
         const { Personalities } = await import("../imports/game/ai/personalities.js");
         const player = { resolve: 3, curses: [] };
-        const game = makeGame({ doomLevel: 10, doomThreshold: 15 });
+        const game = makeGame({ doomLevel: 20, doomThreshold: 30 });
         const result = chooseLoyalToll(player, game, Personalities.grizzled);
         assert.strictEqual(result, 'resolve');
       });
@@ -748,9 +748,9 @@ describe("false_colors", function () {
       it("loyal: low doom + cautious personality → resolve", async function () {
         const { chooseLoyalToll } = await import("../imports/game/ai/tollStrategy.js");
         const { Personalities } = await import("../imports/game/ai/personalities.js");
-        // doom < 30% threshold (4.5), cautious (tollCaution > 0.6), resolve >= 2
+        // doom < 30% threshold (9), cautious (tollCaution > 0.6), resolve >= 2
         const player = { resolve: 3, curses: [] };
-        const game = makeGame({ doomLevel: 2, doomThreshold: 15 });
+        const game = makeGame({ doomLevel: 4, doomThreshold: 30 });
         const result = chooseLoyalToll(player, game, Personalities.grizzled); // tollCaution: 0.7
         assert.strictEqual(result, 'resolve');
       });
@@ -760,7 +760,7 @@ describe("false_colors", function () {
         const { Personalities } = await import("../imports/game/ai/personalities.js");
         // doom < 30% threshold, tollCaution <= 0.6, resolve < 2 so caution branch won't hit resolve
         const player = { resolve: 1, curses: [] };
-        const game = makeGame({ doomLevel: 2, doomThreshold: 15 });
+        const game = makeGame({ doomLevel: 4, doomThreshold: 30 });
         const result = chooseLoyalToll(player, game, Personalities.reckless); // tollCaution: 0.3
         assert.strictEqual(result, 'doom');
       });
@@ -770,7 +770,7 @@ describe("false_colors", function () {
         const { Personalities } = await import("../imports/game/ai/personalities.js");
         // doom between 30% and 50% threshold, resolve >= 2
         const player = { resolve: 2, curses: [] };
-        const game = makeGame({ doomLevel: 6, doomThreshold: 15 });
+        const game = makeGame({ doomLevel: 12, doomThreshold: 30 });
         const result = chooseLoyalToll(player, game, Personalities.nervous);
         assert.strictEqual(result, 'resolve');
       });
@@ -780,7 +780,7 @@ describe("false_colors", function () {
         const { Personalities } = await import("../imports/game/ai/personalities.js");
         // doom between 30%-50%, resolve < 2, curses < 2, tollCaution < 0.5
         const player = { resolve: 1, curses: [] };
-        const game = makeGame({ doomLevel: 6, doomThreshold: 15 });
+        const game = makeGame({ doomLevel: 12, doomThreshold: 30 });
         const result = chooseLoyalToll(player, game, Personalities.reckless); // tollCaution: 0.3
         assert.strictEqual(result, 'curse');
       });
@@ -791,7 +791,7 @@ describe("false_colors", function () {
         const curse1 = { id: 'c1', effect: 'noLookout', value: true };
         const curse2 = { id: 'c2', effect: 'resolveDrain', value: 1 };
         const player = { resolve: 0, curses: [curse1, curse2] };
-        const game = makeGame({ doomLevel: 6, doomThreshold: 15 });
+        const game = makeGame({ doomLevel: 12, doomThreshold: 30 });
         const result = chooseLoyalToll(player, game, Personalities.reckless);
         assert.strictEqual(result, 'doom');
       });
@@ -1072,7 +1072,7 @@ describe("false_colors", function () {
             { seatIndex: 3, resolve: 3, curses: [], role: 'quartermaster', alignment: 'phantom', hasNextAction: true, hasAccused: false, phantomRevealed: false, displayName: 'Dave' },
           ],
           doomLevel: 0,
-          doomThreshold: 15,
+          doomThreshold: 30,
           activeThreats: [],
           threatDeck: createThreatDeck(),
           currentRound: 1,
@@ -1145,7 +1145,7 @@ describe("false_colors", function () {
         game.players = game.players.map(p => ({ ...p, hasNextAction: true }));
 
         // --- Verify game end: doom threshold ---
-        const doomGame = { ...game, doomLevel: 15, doomThreshold: 15 };
+        const doomGame = { ...game, doomLevel: 30, doomThreshold: 30 };
         const doomEnd = checkGameEnd(doomGame);
         assert.strictEqual(doomEnd.ended, true);
         assert.strictEqual(doomEnd.result, GameResult.PHANTOM_WIN);

@@ -86,9 +86,9 @@ Game ends when: doom reaches threshold (doom loss), all threats resolved and rou
     "hubUrl": "https://kokokino.com",
     "requiredProducts": ["base-monthly"],
     "game": {
-      "minPlayers": 4, "maxPlayers": 6,
+      "minPlayers": 6, "maxPlayers": 6,
       "discussionTimeSec": 30, "roundCount": 10,
-      "doomThreshold": 15
+      "doomThreshold": 30
     }
   },
   "private": {
