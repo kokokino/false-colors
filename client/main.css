@@ -378,6 +378,10 @@ footer {
   text-align: center;
 }
 
+.toll-guide {
+  margin-top: 1rem;
+}
+
 /* Action selection */
 .action-targets {
   display: flex;
