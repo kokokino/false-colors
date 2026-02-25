@@ -62,6 +62,30 @@ export const ActionSelection = {
           m('small', `Progress: ${threat.progress}/${threat.threshold} | Your strength: +${strength}`),
         ]);
       })),
+
+      !game.expertMode ? m('details.action-guide', [
+        m('summary', 'Action strategy guide'),
+        m('p', [
+          'Your action adds strength toward resolving a threat. Each threat has a threshold — ',
+          'once total crew strength meets it, the threat is defeated. ',
+          'Unresolved threats add doom every round and escalate after 2 rounds.',
+        ]),
+        m('p', [
+          m('strong', 'Specialty: '),
+          'Specialists contribute +3 strength against their threat types, vs +1 or +2 off-specialty. ',
+          'Check the threat\'s specialist hint to coordinate — send the right person to the right threat.',
+        ]),
+        m('p', [
+          m('strong', 'Coordination: '),
+          'Actions are simultaneous and secret. If everyone piles onto one threat, others go unresolved ',
+          'and keep adding doom. Spread out based on discussion.',
+        ]),
+        m('p', [
+          m('strong', 'Phantom tells: '),
+          'The phantom may waste strength on already-resolved threats or stack onto an over-targeted threat. ',
+          'Watch for players who consistently avoid contributing where it matters.',
+        ]),
+      ]) : null,
     ]);
   },
 
