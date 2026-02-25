@@ -153,7 +153,13 @@ export const GameBoard = {
           m(PlayerPanel, {
             players: game.players,
             currentSeat: myPlayer?.seatIndex,
-            onViewPlayer: (player) => { this.viewingPlayer = player; },
+            onViewPlayer: (player) => {
+              if (myPlayer && player.seatIndex === myPlayer.seatIndex) {
+                this.showCharacterCard = true;
+              } else {
+                this.viewingPlayer = player;
+              }
+            },
           }),
           m(GameHistory, { logs: this.logs, game }),
           m(GameLogPanel, { logs: this.logs }),
