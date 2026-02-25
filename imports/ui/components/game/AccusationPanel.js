@@ -63,7 +63,7 @@ export const AccusationPanel = {
         m('strong', 'ONE accusation'),
         ' for the entire game. Wrong = +3 doom and a skull.',
       ]),
-      !game.expertMode ? m('p.muted', 'Your crew will vote on whether to convict. If they vote Not Guilty, the accusation is cancelled \u2014 no penalty for anyone.') : null,
+      !(Meteor.user()?.isExpertPlayer) ? m('p.muted', 'Your crew will vote on whether to convict. If they vote Not Guilty, the accusation is cancelled \u2014 no penalty for anyone.') : null,
 
       this.error ? m('p.error-message', this.error) : null,
 
@@ -98,7 +98,7 @@ export const AccusationPanel = {
         ' of being the phantom!',
       ]),
       m('p.warning', 'Wrong accusation: +3 doom, +1 skull, accuser loses next action.'),
-      !game.expertMode ? m('p.muted', 'Vote Guilty if you believe the accusation. Vote Not Guilty to acquit \u2014 if acquitted, no penalty is applied and the accusation is cancelled.') : null,
+      !(Meteor.user()?.isExpertPlayer) ? m('p.muted', 'Vote Guilty if you believe the accusation. Vote Not Guilty to acquit \u2014 if acquitted, no penalty is applied and the accusation is cancelled.') : null,
 
       this.error ? m('p.error-message', this.error) : null,
 

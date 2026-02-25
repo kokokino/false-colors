@@ -92,7 +92,7 @@ export const TollSelection = {
         ]),
       ]),
 
-      !game.expertMode ? m('details.toll-guide', [
+      !(Meteor.user()?.isExpertPlayer) ? m('details.toll-guide', [
         m('summary', 'Toll strategy guide'),
         m('p', [
           m('strong', 'Resolve'), ' is the safest for the ship — it only hurts you. ',

@@ -63,7 +63,7 @@ export const ActionSelection = {
         ]);
       })),
 
-      !game.expertMode ? m('details.action-guide', [
+      !(Meteor.user()?.isExpertPlayer) ? m('details.action-guide', [
         m('summary', 'Action strategy guide'),
         m('p', [
           'Your action adds strength toward resolving a threat. Each threat has a threshold — ',

@@ -88,7 +88,7 @@ export const GameBoard = {
     // Find current player's seat
     const myPlayer = game.players.find(p => p.userId === Meteor.userId());
     const user = Meteor.user();
-    const expertMode = game.expertMode || false;
+    const expertMode = user?.isExpertPlayer || false;
 
     // Game intro for non-expert players
     if (this.showIntro && !expertMode && game.currentRound === 1) {
