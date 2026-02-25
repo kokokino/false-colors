@@ -378,6 +378,10 @@ footer {
   text-align: center;
 }
 
+.toll-options button .muted {
+  color: rgba(255, 255, 255, 0.7);
+}
+
 .toll-guide {
   margin-top: 1rem;
 }

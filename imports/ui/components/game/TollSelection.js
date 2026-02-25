@@ -68,7 +68,7 @@ export const TollSelection = {
           m('br'),
           m('small.muted', resolveDisabled
             ? 'Locked — no resolve left.'
-            : 'You lose 1 resolve. At 0, this option locks.'),
+            : 'You lose 1 resolve. At 0, your actions lose 1 strength.'),
         ]),
 
         m('button.secondary', {
@@ -96,7 +96,7 @@ export const TollSelection = {
         m('summary', 'Toll strategy guide'),
         m('p', [
           m('strong', 'Resolve'), ' is the safest for the ship — it only hurts you. ',
-          'But once you hit 0, this option locks. The Cook can restore resolve, so coordinate.',
+          'But at 0 resolve your actions lose 1 strength, and you can no longer pick this option. The Cook can restore resolve, so coordinate.',
         ]),
         m('p', [
           m('strong', 'Doom'), ' is painless for you but pushes the ship closer to sinking. ',
