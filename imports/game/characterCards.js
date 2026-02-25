@@ -135,7 +135,6 @@ export const CharacterCards = {
 for (const crew of CrewRoster) {
   if (CharacterCards[crew.roleId]) {
     CharacterCards[crew.roleId].title = crew.characterName;
-    const surname = crew.characterName.split(' ').slice(1).join(' ');
-    CharacterCards[crew.roleId].bio = CharacterCards[crew.roleId].bio.replace('{surname}', surname);
+    CharacterCards[crew.roleId].bio = CharacterCards[crew.roleId].bio.replace('{surname}', crew.characterName);
   }
 }

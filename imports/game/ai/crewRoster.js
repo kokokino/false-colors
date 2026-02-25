@@ -5,37 +5,37 @@
 export const CrewRoster = [
   {
     seatIndex: 0,
-    characterName: 'Quartermaster Blackwood',
+    characterName: 'Blackwood',
     roleId: 'quartermaster',
     personality: 'grizzled',
   },
   {
     seatIndex: 1,
-    characterName: 'Navigator Voss',
+    characterName: 'Voss',
     roleId: 'navigator',
     personality: 'analytical',
   },
   {
     seatIndex: 2,
-    characterName: 'Gunner Thorne',
+    characterName: 'Thorne',
     roleId: 'gunner',
     personality: 'reckless',
   },
   {
     seatIndex: 3,
-    characterName: 'Surgeon Crane',
+    characterName: 'Crane',
     roleId: 'surgeon',
     personality: 'nervous',
   },
   {
     seatIndex: 4,
-    characterName: 'Lookout Maren',
+    characterName: 'Maren',
     roleId: 'lookout',
     personality: 'jovial',
   },
   {
     seatIndex: 5,
-    characterName: 'Cook Delgado',
+    characterName: 'Delgado',
     roleId: 'cook',
     personality: 'devout',
   },

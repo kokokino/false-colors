@@ -24,7 +24,7 @@ export const CharacterCard = {
     return m('dialog.character-card-dialog[open]', [
       m('article', [
         m('header', [
-          m('h3', card.title),
+          m('h3', `${player.role.charAt(0).toUpperCase() + player.role.slice(1)} ${card.title}`),
           m('p.motto', card.motto),
         ]),
 
