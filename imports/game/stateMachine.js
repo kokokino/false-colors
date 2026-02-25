@@ -589,10 +589,14 @@ export async function resolveAccusationPhase(gameId) {
     const result = resolveAccusation(game, game.accusation);
 
     // Build update operations
+    const now = new Date();
+    const resultDuration = getPhaseDuration('accusation_result', game.expertMode);
     const setOp = {
       accusation: { ...game.accusation, resolved: true, ...result },
       players: result.updatedPlayers || game.players,
-      updatedAt: new Date(),
+      readyPlayers: [],
+      phaseDeadline: new Date(now.getTime() + resultDuration),
+      updatedAt: now,
     };
 
     // Flag correct accusation so next discussion triggers phantomRevealedReaction
@@ -631,6 +635,7 @@ export async function resolveAccusationPhase(gameId) {
       accuserSeat: game.accusation.accuserSeat,
       targetSeat: game.accusation.targetSeat,
       correct: result.correct,
+      convicted: result.convicted,
     });
 
     // On correct accusation, update suspicion: max phantom, reward accuser, reset stale scores
@@ -683,8 +688,8 @@ export async function resolveAccusationPhase(gameId) {
       }
     }
 
-    // Phantom caught — game continues now (no longer ends)
-    await advancePhase(gameId, GamePhase.ACCUSATION);
+    // Show result for a few seconds before advancing
+    startPhaseTimer(gameId, 'accusation_result', (gId) => advancePhase(gId, GamePhase.ACCUSATION), game.expertMode);
   } finally {
     resolveLocks.delete(lockKey);
   }

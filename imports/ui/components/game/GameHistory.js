@@ -78,7 +78,13 @@ function formatLogEntry(log) {
       }
       return 'Actions resolved';
     case 'accusation_resolved':
-      return data.correct ? 'Phantom correctly identified!' : 'Wrong accusation — penalty applied';
+      if (data.correct) {
+        return 'Phantom correctly identified!';
+      }
+      if (data.convicted) {
+        return 'Wrong accusation — penalty applied';
+      }
+      return 'Accusation — crew voted to acquit';
     case 'cook_nourish':
       return `Cook nourished ${data.targetName || 'a crew member'}`;
     case 'round_started':

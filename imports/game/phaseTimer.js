@@ -11,6 +11,7 @@ export const PhaseDurationsNovice = {
   discussion: 60000,
   action: 45000,
   accusation: 30000,
+  accusation_result: 8000,
   round_end: 15000,
 };
 
@@ -21,6 +22,7 @@ export const PhaseDurationsExpert = {
   discussion: 45000,
   action: 30000,
   accusation: 20000,
+  accusation_result: 5000,
   round_end: 10000,
 };
 

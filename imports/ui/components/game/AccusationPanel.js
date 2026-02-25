@@ -112,6 +112,12 @@ export const AccusationPanel = {
   },
 
   renderResult(game, accusation) {
+    // Reset ready state so button appears for the result display period
+    if (!this._resultSeen) {
+      this._resultSeen = true;
+      this.readySubmitted = false;
+    }
+
     const target = game.players.find(p => p.seatIndex === accusation.targetSeat);
     const targetName = target?.displayName || 'The accused';
 
@@ -124,10 +130,31 @@ export const AccusationPanel = {
       message = `${targetName} was loyal. +3 doom added, +1 skull. The accuser loses their next action.`;
     }
 
+    // Vote tally
+    const votes = accusation.votes || [];
+    const guiltyCount = votes.filter(v => v.guilty).length;
+    const notGuiltyCount = votes.filter(v => !v.guilty).length;
+
+    // Per-player vote list
+    const voteEntries = votes.map(v => {
+      const voter = game.players.find(p => p.seatIndex === v.seatIndex);
+      return { name: voter?.displayName || 'Unknown', guilty: v.guilty };
+    });
+
     return m('div.phase-content.accusation-panel', [
       m('h3', 'Accusation Result'),
       accusation.correct ? m('mark', 'PHANTOM REVEALED') : null,
       m('p', message),
+      m('p', [
+        m('strong', `Guilty: ${guiltyCount}`),
+        ' — ',
+        m('strong', `Not Guilty: ${notGuiltyCount}`),
+      ]),
+      votes.length > 0 ? m('ul.vote-breakdown', voteEntries.map(entry =>
+        m('li', { key: entry.name }, [
+          entry.name, ' — ', entry.guilty ? 'Guilty' : 'Not Guilty',
+        ])
+      )) : null,
       !this.readySubmitted
         ? m('button.outline', { onclick: () => this.markReady(game._id) }, 'Ready to move on')
         : m('p.muted', 'Waiting for other crew members...'),

@@ -3,6 +3,7 @@ import { check, Match } from 'meteor/check';
 import { Games, GameMessages } from '../imports/api/collections.js';
 import { GamePhase, GameConstants } from '../imports/lib/collections/games.js';
 import { resolveTollPhase, resolveActionPhase, resolveAccusationPhase, checkReadyToAdvance, applyCookNourish } from '../imports/game/stateMachine.js';
+import { scheduleAiVotesOnAccusation } from '../imports/game/ai/decisionEngine.js';
 
 Meteor.methods({
   // Submit a toll choice during TOLL phase
@@ -285,6 +286,9 @@ Meteor.methods({
     if (updated === 0) {
       throw new Meteor.Error('accusation-exists', 'An accusation has already been made this round');
     }
+
+    // Schedule AI players to vote on the human's accusation
+    scheduleAiVotesOnAccusation(gameId, accuser.seatIndex, targetSeatIndex);
   },
 
   // Vote on an active accusation

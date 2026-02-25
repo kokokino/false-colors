@@ -472,3 +472,22 @@ async function handleAiAccusation(gameId, aiPlayer) {
     Meteor.setTimeout(() => handleAiAccusation(gameId, other), voteDelay);
   }
 }
+
+// Schedule AI votes when a human makes an accusation
+export function scheduleAiVotesOnAccusation(gameId, accuserSeat, targetSeat) {
+  (async () => {
+    const game = await Games.findOneAsync(gameId);
+    if (!game) {
+      return;
+    }
+    const aiVoters = game.players.filter(p =>
+      p.isAI && p.seatIndex !== accuserSeat && p.seatIndex !== targetSeat
+    );
+    for (const ai of aiVoters) {
+      const delay = randomDelay(2000, 5000);
+      Meteor.setTimeout(() => {
+        handleAiAccusation(gameId, ai).catch(err => console.error('[ai] vote error:', err));
+      }, delay);
+    }
+  })();
+}
