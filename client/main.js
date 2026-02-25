@@ -25,6 +25,7 @@ const MeteorWrapper = {
     this.computation = null;
   },
   oncreate() {
+    this.userDataSub = Meteor.subscribe('userData');
     this.computation = Tracker.autorun(() => {
       Meteor.user();
       Meteor.userId();
@@ -33,6 +34,9 @@ const MeteorWrapper = {
     });
   },
   onremove() {
+    if (this.userDataSub) {
+      this.userDataSub.stop();
+    }
     if (this.computation) {
       this.computation.stop();
     }
