@@ -49,10 +49,10 @@ export const Roles = {
     id: 'cook',
     name: 'Cook',
     specialty: [],
-    specialtyStrength: 1,
-    offStrength: 1,
-    passive: 'nourish: restore 1 resolve to a crew member (5 meals per game)',
-    description: 'Weak fighter but can nourish crew to restore resolve.',
+    specialtyStrength: 2,
+    offStrength: 2,
+    passive: 'nourish: restore 1 resolve to a crew member (7 meals per game)',
+    description: 'Solid fighter who can also nourish crew to restore resolve.',
   },
 };
 

@@ -195,7 +195,7 @@ export function resolveAccusation(game, accusation) {
       correct: false,
       convicted: true,
       updatedPlayers,
-      doomChange: 3,
+      doomChange: 2,
       skull: { round: game.currentRound, reason: 'false_accusation', description: 'False accusation' },
     };
   }

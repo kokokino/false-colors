@@ -17,7 +17,7 @@ const DEFAULT_DOOM_THRESHOLD = 30;
 const DEFAULT_MAX_ROUNDS = 10;
 const DEFAULT_STARTING_RESOLVE = 3;
 const MAX_RESOLVE = 5;
-const COOK_STARTING_MEALS = 5;
+const COOK_STARTING_MEALS = 7;
 // Probability that a phantom exists (80% chance)
 const PHANTOM_PROBABILITY = 0.8;
 
@@ -25,10 +25,10 @@ const PHANTOM_PROBABILITY = 0.8;
 // Only fires on upward crossings — doom decreases do not un-trigger.
 export function checkDoomMilestones(oldDoom, newDoom, currentRound) {
   const milestones = [];
-  if (oldDoom < 5 && newDoom >= 5) {
+  if (oldDoom < 8 && newDoom >= 8) {
     milestones.push({ round: currentRound, reason: 'doom_rising', description: 'Doom rising' });
   }
-  if (oldDoom < 10 && newDoom >= 10) {
+  if (oldDoom < 16 && newDoom >= 16) {
     milestones.push({ round: currentRound, reason: 'doom_critical', description: 'Doom critical' });
   }
   return milestones;
@@ -276,7 +276,7 @@ async function runThreatPhase(gameId) {
     }
 
     // Skull for threats causing 4+ cumulative doom
-    if (threat.totalDoomCaused >= 4 && !threat.skullAwarded) {
+    if (threat.totalDoomCaused >= 6 && !threat.skullAwarded) {
       threat.skullAwarded = true;
       newSkulls.push({
         round: game.currentRound,
@@ -508,7 +508,7 @@ export async function resolveActionPhase(gameId) {
         reason: 'threat_resolved',
         description: `Defeated ${threat.name}`,
       });
-      doomReduction += 1;
+      doomReduction += 2;
       newDefeated += 1;
     }
 
