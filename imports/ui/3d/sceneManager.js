@@ -8,6 +8,7 @@ import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder.js';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial.js';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { Animation } from '@babylonjs/core/Animations/animation.js';
+import '@babylonjs/core/Animations/animatable.js';
 
 import {
   loadCharacter,

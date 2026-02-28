@@ -4,6 +4,7 @@ import { PointLight } from '@babylonjs/core/Lights/pointLight.js';
 import { ParticleSystem } from '@babylonjs/core/Particles/particleSystem.js';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture.js';
 import { Animation } from '@babylonjs/core/Animations/animation.js';
+import '@babylonjs/core/Animations/animatable.js';
 
 // Doom-reactive atmospheric effects
 // Fog density, lantern flicker, color grading, ghost particles, threat-specific effects

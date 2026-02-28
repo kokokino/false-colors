@@ -154,7 +154,6 @@ export const GameBoard = {
 
         // Babylon canvas fills the container
         m(GameScene, {
-          key: 'game-scene-3d',
           game,
           myPlayer,
           messages: this.messages,
