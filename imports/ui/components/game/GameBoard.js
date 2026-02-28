@@ -12,6 +12,9 @@ import { GuideTooltip } from './GuideTooltip.js';
 import { GameIntro } from './GameIntro.js';
 import { CharacterCard } from './CharacterCard.js';
 import { GameHistory } from './GameHistory.js';
+import { GameScene } from './GameScene.js';
+
+const VIEW_STORAGE_KEY = 'falseColors_viewMode';
 
 // Main game board component — subscribes to game data and orchestrates sub-components
 // Attrs: gameId
@@ -26,6 +29,8 @@ export const GameBoard = {
     this.showIntro = true;
     this.showCharacterCard = true;
     this.viewingPlayer = null;
+    // View mode: '3d' or 'text' — persisted in localStorage
+    this.viewMode = localStorage.getItem(VIEW_STORAGE_KEY) || 'text';
   },
 
   oncreate(vnode) {
@@ -134,6 +139,65 @@ export const GameBoard = {
           })
         : null;
 
+    // View toggle button
+    const viewToggle = m('button.view-toggle.outline.secondary', {
+      onclick: () => {
+        this.viewMode = this.viewMode === '3d' ? 'text' : '3d';
+        localStorage.setItem(VIEW_STORAGE_KEY, this.viewMode);
+      },
+    }, this.viewMode === '3d' ? 'Text View' : '3D View');
+
+    // 3D view — full scene with overlay panels
+    if (this.viewMode === '3d') {
+      return m('div.game-container.game-container-3d', [
+        cardOverlay,
+
+        // Babylon canvas fills the container
+        m(GameScene, {
+          key: 'game-scene-3d',
+          game,
+          myPlayer,
+          messages: this.messages,
+        }),
+
+        // Overlay panels positioned on top of the canvas
+        m('div.scene-overlay', [
+          m('div.scene-overlay-top', [
+            m(GameHeader, {
+              game,
+              myPlayer,
+              onViewCard: () => { this.showCharacterCard = true; },
+            }),
+            viewToggle,
+          ]),
+
+          m(GuideTooltip, { phase: game.currentPhase, expertMode }),
+
+          // Bottom overlay — phase panel and sidebar
+          m('div.scene-overlay-bottom', [
+            m('div.scene-overlay-main', [
+              m(PhasePanel, { game, myPlayer, messages: this.messages }),
+            ]),
+
+            m('div.scene-overlay-sidebar', [
+              m(PlayerPanel, {
+                players: game.players,
+                currentSeat: myPlayer?.seatIndex,
+                onViewPlayer: (player) => {
+                  if (myPlayer && player.seatIndex === myPlayer.seatIndex) {
+                    this.showCharacterCard = true;
+                  } else {
+                    this.viewingPlayer = player;
+                  }
+                },
+              }),
+            ]),
+          ]),
+        ]),
+      ]);
+    }
+
+    // Text view — existing UI unchanged
     return m('div.game-container', [
       cardOverlay,
       m(GameHeader, {
@@ -141,6 +205,7 @@ export const GameBoard = {
         myPlayer,
         onViewCard: () => { this.showCharacterCard = true; },
       }),
+      viewToggle,
       m(GuideTooltip, { phase: game.currentPhase, expertMode }),
 
       m('div.game-layout', [

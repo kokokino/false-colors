@@ -634,3 +634,157 @@ footer {
   font-size: 0.8em;
   cursor: pointer;
 }
+
+/* ===========================
+   3D View Styles
+   =========================== */
+
+/* View toggle button */
+.view-toggle {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+/* 3D game container — takes full viewport */
+.game-container-3d {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 80px);
+  overflow: hidden;
+}
+
+/* Babylon canvas fills its container */
+.game-scene-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.game-scene-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  outline: none;
+}
+
+/* Loading/error overlays for the 3D scene */
+.scene-loading-overlay,
+.scene-error-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 5;
+}
+
+/* Overlay container — sits on top of the Babylon canvas */
+.scene-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+}
+
+/* All interactive elements in overlays need pointer events re-enabled */
+.scene-overlay button,
+.scene-overlay input,
+.scene-overlay select,
+.scene-overlay textarea,
+.scene-overlay a,
+.scene-overlay [role="group"],
+.scene-overlay details,
+.scene-overlay .crew-member {
+  pointer-events: auto;
+}
+
+/* Top bar overlay — header + view toggle */
+.scene-overlay-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0.5rem 1rem;
+  pointer-events: auto;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), transparent);
+}
+
+.scene-overlay-top .game-header {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.scene-overlay-top .view-toggle {
+  margin-bottom: 0;
+  flex-shrink: 0;
+  margin-left: 1rem;
+}
+
+/* Bottom overlay — phase panel + sidebar */
+.scene-overlay-bottom {
+  margin-top: auto;
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+  max-height: 45%;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+
+.scene-overlay-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.scene-overlay-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+}
+
+/* Style adjustments for overlay panels — semi-transparent backgrounds */
+.scene-overlay .phase-content {
+  background: rgba(20, 20, 25, 0.85);
+  border-radius: var(--pico-border-radius);
+  padding: 0.75rem;
+  margin-top: 0;
+}
+
+.scene-overlay .player-panel {
+  background: rgba(20, 20, 25, 0.85);
+  border-radius: var(--pico-border-radius);
+  padding: 0.5rem;
+}
+
+.scene-overlay .discussion-messages {
+  max-height: 120px;
+  background: rgba(15, 15, 20, 0.9);
+}
+
+.scene-overlay .guide-tooltip {
+  padding: 0 1rem;
+}
+
+/* Responsive — stack overlay panels on small screens */
+@media (max-width: 768px) {
+  .scene-overlay-bottom {
+    flex-direction: column;
+    max-height: 50%;
+  }
+
+  .scene-overlay-sidebar {
+    width: 100%;
+  }
+}
