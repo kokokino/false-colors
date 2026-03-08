@@ -11,7 +11,7 @@ Phase 1 (Core Engine) is complete — the game is fully playable as a text-only 
 **Key decisions from our research:**
 - **3D model tool:** Sloyd.ai (Plus plan, $15/mo or $150/yr annual)
 - **Lip sync pipeline:** HeadTTS (Kokoro TTS + Oculus viseme output) — implemented in Phase 4, but models prepared now
-- **Facial morph targets:** FACEIT Blender addon (~$50) + TalkingHead viseme script
+- **Facial morph targets:** FACEIT 2.3 Blender addon ($99) + TalkingHead FACEIT phoneme-to-viseme script
 - **Image generation:** SuperMachine.art for concept art / image-to-3D input
 - **3D engine:** Babylon JS 8 with WebXR support
 
@@ -32,8 +32,8 @@ This is the creative/manual work that happens outside the codebase. It produces 
 
 **Blender**
 - Download Blender 4.x from blender.org (free)
-- Install FACEIT addon (~$50) from superhivemarket.com — automates facial blend shape creation
-- Download the TalkingHead viseme build script: https://github.com/met4citizen/TalkingHead/blob/main/blender/build-visemes-from-arkit.py
+- Install FACEIT 2.3 addon ($99) from superhivemarket.com — automates facial blend shape creation (outputs ARKit blend shapes + Microsoft visemes)
+- The TalkingHead FACEIT phoneme-to-viseme script is included in the project at `tools/blender/build-visemes-from-faceit-phonemes.py` (source: https://github.com/met4citizen/TalkingHead/blob/main/blender/Faceit/build-visemes-from-faceit-phonemes.py)
 
 **SuperMachine.art**
 - Use existing subscription for concept art generation
@@ -95,8 +95,8 @@ If text-to-3D works better for some characters, try these directly in Sloyd:
 After exporting GLB from Sloyd, open each character in Blender:
 
 1. **Verify/fix topology** — Ensure mouth area has enough edge loops (3-4 concentric loops around mouth opening). Add with Ctrl+R in Edit Mode if needed.
-2. **Run FACEIT** — Place facial landmarks, generate ARKit blend shapes automatically (~15 min per character with the addon)
-3. **Run TalkingHead viseme script** — Converts 52 ARKit shapes to 15 Oculus visemes automatically
+2. **Run FACEIT 2.3** — Place facial landmarks, generate ARKit blend shapes + Microsoft visemes automatically (~15 min per character with the addon)
+3. **Run viseme conversion script** — Open `tools/blender/build-visemes-from-faceit-phonemes.py` in Blender's text editor and run it. Converts FACEIT's 21 Microsoft visemes to 15 Oculus visemes automatically.
 4. **Verify morph targets** — Test each viseme with the shape key sliders
 5. **Export GLB** — File > Export > glTF 2.0, ensure "Shape Keys" is checked
 6. **Verify** — Load into https://gltf-viewer.donmccurdy.com/ and check morph target sliders work
@@ -365,13 +365,53 @@ Add WebXR support for future VR:
 
 ---
 
+## Face Animation Pipeline (End-to-End)
+
+This section documents the full lip sync pipeline from asset creation through runtime. Character models are prepared in Phase 2; the runtime integration happens in Phase 4.
+
+### Asset Prep (Phase 2 — Blender, done once per character)
+
+```
+Sloyd → character GLB
+  → Import into Blender
+  → FACEIT 2.3 generates ARKit blend shapes + Microsoft visemes
+  → Run build-visemes-from-faceit-phonemes.py → 15 Oculus visemes added as shape keys
+  → Export GLB with all shape keys
+```
+
+### Runtime (Phase 4 — browser, every AI speech)
+
+```
+Server: AI decision engine → template text (or LLM-styled text)
+  ↓ sent via DDP to client
+Client: HeadTTS(text) → Kokoro audio + Oculus viseme timeline (timestamps)
+  ↓
+Client: TalkingHead drives morph target weights on the GLB model
+  ↓
+Client: Babylon JS renders the mesh with blended morph targets each frame
+```
+
+### What each piece needs
+
+| Component | Needs | Provides |
+|-----------|-------|----------|
+| **FACEIT 2.3** | Character mesh with good mouth topology | ARKit shapes + Microsoft visemes |
+| **TalkingHead Blender script** | FACEIT's Microsoft visemes | 15 Oculus viseme shape keys in GLB |
+| **HeadTTS** | Text input | Kokoro audio + Oculus viseme timeline |
+| **TalkingHead (runtime)** | Audio + viseme timeline + GLB with Oculus shape keys | Drives morph target weights per frame |
+| **Babylon JS** | GLB with morph targets + weight values per frame | Rendered 3D character with lip sync |
+
+Babylon JS is format-agnostic — it reads whatever morph targets are in the GLB and lets you set influence weights (0.0–1.0) per target per frame. TalkingHead handles the logic of which viseme at what weight at what time. Babylon just renders it.
+
+---
+
 ## Budget Summary
 
 | Item | Cost | Notes |
 |------|------|-------|
 | Sloyd Plus | $15/mo (or $150/yr) | 1-2 months during asset creation |
-| FACEIT addon | ~$50 one-time | Blender facial morph target automation |
+| FACEIT 2.3 addon | $99 one-time | Blender facial morph target automation |
 | Blender | Free | |
 | SuperMachine | Existing subscription | Concept art for image-to-3D |
 | Babylon JS | Free (open source) | |
-| **Total** | **~$65-80** | Plus existing SuperMachine sub |
+| **Total** | **~$115-130** | Plus existing SuperMachine sub |
