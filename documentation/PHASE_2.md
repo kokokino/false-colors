@@ -92,14 +92,56 @@ If text-to-3D works better for some characters, try these directly in Sloyd:
 
 #### Blender Post-Processing (Per Character)
 
-After exporting GLB from Sloyd, open each character in Blender:
+After exporting GLB from Sloyd/Tripo, open each character in Blender 3.6:
 
-1. **Verify/fix topology** — Ensure mouth area has enough edge loops (3-4 concentric loops around mouth opening). Add with Ctrl+R in Edit Mode if needed.
-2. **Run FACEIT 2.3** — Place facial landmarks, generate ARKit blend shapes + Microsoft visemes automatically (~15 min per character with the addon)
-3. **Run viseme conversion script** — Open `tools/blender/build-visemes-from-faceit-phonemes.py` in Blender's text editor and run it. Converts FACEIT's 21 Microsoft visemes to 15 Oculus visemes automatically.
-4. **Verify morph targets** — Test each viseme with the shape key sliders
-5. **Export GLB** — File > Export > glTF 2.0, ensure "Shape Keys" is checked
-6. **Verify** — Load into https://gltf-viewer.donmccurdy.com/ and check morph target sliders work
+1. **Import GLB** — File > Import > glTF 2.0. Delete default scene objects first (A to select all, X to delete).
+2. **Orient the model** — The character must face -Y direction. If it doesn't, select the Armature and rotate: R, Z, type the angle (e.g., 270), Enter. Verify with View > Viewpoint > Front — the face should look straight at you.
+3. **Switch to Material Preview** — Click the second-from-right shading sphere in the viewport header (or press Z and select Material Preview) to see textures. The far-right Rendered mode will be dark without lights.
+4. **Clean up mesh** — Select the mesh, Tab into Edit Mode, A to select all, Mesh > Clean Up > Merge by Distance. Tab back to Object Mode.
+5. **FACEIT Setup tab:**
+   - Click "Register Face Objects" with the mesh selected
+   - Click "Check Geometry" — if you get an armature position warning, click "Rest Position"
+   - Assign vertex groups: for a single-mesh character, use the Object picker (press O) to select the whole mesh as Face Main. Press Enter to confirm.
+6. **FACEIT Rig tab:**
+   - Click "Generate Landmarks" — a wireframe face template appears
+   - Adjust landmark vertices to match the face: click a vertex to select it, press G to grab/move, click to confirm
+   - The landmarks should align with eyes, mouth, jawline. Doesn't need to be perfect.
+   - Scroll down to Pivot Setup — leave Eye Pivots on Auto/Spherical, skip Jaw Pivot
+   - Click "Generate Faceit Rig"
+   - Click "Bind" — if "Automatic Weights" fails, try Mesh > Clean Up > Merge by Distance on the mesh first, then retry Bind
+7. **FACEIT Expressions tab:**
+   - Click "Load Faceit Expressions" → select **ARKit** → OK
+   - Click "Load Faceit Expressions" again → select **Phonemes** → set to **Append** → OK
+   - This gives 52 ARKit shapes + 21 Microsoft phoneme shapes
+8. **FACEIT Bake tab:**
+   - Click "Bake Shape Keys" → select "Action" and "None" → OK
+9. **Run viseme conversion script** — Switch to Scripting workspace, Open `tools/blender/build-visemes-from-faceit-phonemes.py`, click Run Script. Adds 14 Oculus visemes as shape keys (viseme_sil is omitted — the Basis pose serves as the silent mouth).
+10. **Verify morph targets** — Back in Layout, select the mesh, check Shape Keys in Properties. Slide viseme values to test mouth movement.
+11. **Clean up before export:**
+    - Run `tools/blender/cleanup-shape-keys.py` in the Scripting workspace (with mesh selected) — removes ARKit/phoneme shape keys, keeps only Basis + 14 visemes
+    - Delete duplicate meshes if any were created by FACEIT (check Outliner for extra tripo_mesh objects — keep only the one with viseme shape keys)
+    - Delete the Faceit_Collection from the Outliner (contains FaceitRig and facial_landmarks, not needed after baking)
+12. **Export GLB** — File > Export > glTF 2.0:
+    - **Shape Keys** — checked
+    - **Shape Key Normals** — unchecked (saves significant file size)
+    - **Shape Key Tangents** — unchecked
+    - **Animations** — unchecked (not needed, visemes are driven at runtime)
+    - **+Y Up** — checked (converts Blender Z-up to glTF Y-up)
+13. **Verify export** — Run `node tools/inspect-glb.js <path-to-glb>` to confirm 14 viseme morph targets are present
+
+**Lessons learned from Blackwood (first character processed):**
+
+- **Model orientation matters** — Tripo models may not face -Y by default. Must rotate before generating landmarks or they won't align.
+- **FACEIT bind may fail** — "Automatic Weights failed" is common with AI-generated models. Clean up mesh (Merge by Distance) before binding.
+- **FACEIT creates duplicate meshes** — Failed bind attempts and the bind process itself can create mesh copies. Check the Outliner and delete extras before export.
+- **Mouth topology limits deformation quality** — AI-generated models (Tripo/Sloyd) typically have the mouth painted as texture on a closed mesh surface, with no actual mouth opening or edge loops around the lips. FACEIT can move the jaw but can't open a mouth that doesn't exist in the geometry. At table distance in-game, jaw movement + TTS audio is acceptable. For better lip sync, source models with proper mouth geometry.
+- **GLB file size bloat** — Blender's GLB exporter stores morph target data densely (all vertices for every shape key). A 5MB model becomes ~13MB with 14 visemes on a 39K vertex whole-body mesh. Mitigations: delete unused shape keys, uncheck Shape Key Normals/Tangents, delete FACEIT rig and duplicate meshes before export. Separating head from body mesh would further reduce size but adds complexity.
+- **Save the full Blender file to private/** — Before cleaning up for export, save a copy of the .blend or the full GLB (with all shape keys and FACEIT rig) to `private/` in case you need to redo the process.
+
+**Tools in the project:**
+- `tools/blender/build-visemes-from-faceit-phonemes.py` — Converts FACEIT phonemes to 15 Oculus visemes (run in Blender Scripting workspace)
+- `tools/blender/cleanup-shape-keys.py` — Removes all shape keys except Basis + visemes (run in Blender Scripting workspace, mesh must be selected)
+- `tools/inspect-glb.js` — Inspects a GLB file for morph targets, nodes, textures, etc. (run with `node tools/inspect-glb.js <file>`)
 
 **Tutorials for learning this workflow:**
 - **Blender basics (if needed):** Blender's official "First Steps" tutorial at docs.blender.org
@@ -108,12 +150,11 @@ After exporting GLB from Sloyd, open each character in Blender:
 - **Stylized shape keys:** "Basic Expression Shapekeys" by Julien Kaspar at studio.blender.org/training/stylized-character-workflow/
 - **Video tutorial:** "How to Generate Lip Sync for Mouth Shape Keys" (Freedom Arts) on YouTube, Blender 3.6 (workflow identical in 4.x)
 - **Edge loops for faces:** blenderbasecamp.com/blender-facial-rigging-edge-loop-guide/
-- **GLB export verification:** Load exported files in gltf-viewer.donmccurdy.com to confirm morph targets
+- **GLB export verification:** Run `node tools/inspect-glb.js` or load in gltf-viewer.donmccurdy.com to confirm morph targets
 
 **Time estimate per character:**
-- Sloyd generation + iteration: 30-60 min
-- Blender FACEIT pass: 30-60 min
-- Total: ~1-2 hours per character, ~6-12 hours for all 6
+- FACEIT workflow in Blender: 45-90 min (longer the first time, faster once familiar)
+- Total for all 6: ~5-9 hours
 
 ### A4. Prop Models
 
