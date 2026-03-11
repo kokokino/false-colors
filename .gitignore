@@ -29,6 +29,9 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
+# Blender backups
+*.blend1
+
 # Testing
 coverage/
 .nyc_output
@@ -40,6 +43,7 @@ coverage/
 # AI tools
 .aider*
 .claude/
+.mcp.json
 
 # Private keys (NEVER commit these)
 *.pem
