@@ -168,12 +168,18 @@ const GESTURES = [
 
 // Natural resting pose offsets — applied on top of T-pose rest to bring arms down
 // These rotate bones from T-pose into a relaxed standing position
-const NATURAL_POSE = {
-  leftArm:      Quaternion.FromEulerAngles(0.15, 0, -0.9),   // rotate down ~50deg, arms slightly out
-  rightArm:     Quaternion.FromEulerAngles(0.15, 0, 0.9),    // mirror for right side
-  leftForearm:  new Quaternion(0.15, 0, 0, 0.99),             // bend elbow ~17deg (rotate around bone's local X)
-  rightForearm: new Quaternion(0.15, 0, 0, 0.99),            // same for both (elbows curl same direction in local space)
-};
+// Female characters get arms closer to body (70deg), males slightly out (60deg)
+const FEMALE_CHARACTERS = new Set(['voss', 'crane', 'maren']);
+
+function getNaturalPose(characterName) {
+  const armAngle = FEMALE_CHARACTERS.has(characterName) ? 1.22 : 1.05; // ~70deg vs ~60deg
+  return {
+    leftArm:      Quaternion.FromEulerAngles(0.15, 0, -armAngle),
+    rightArm:     Quaternion.FromEulerAngles(0.15, 0, armAngle),
+    leftForearm:  new Quaternion(0.15, 0, 0, 0.99),
+    rightForearm: new Quaternion(0.15, 0, 0, 0.99),
+  };
+}
 
 // Pick a random gesture and start it for a character
 function triggerRandomGesture(state, time) {
@@ -185,7 +191,7 @@ function triggerRandomGesture(state, time) {
   };
   // Schedule next gesture 6-14 seconds after this one ends
   state.nextGestureTime = time + gesture.duration + 6 + Math.random() * 8;
-  console.log(`[gesture] Seat ${state.seatIndex}: ${gesture.name} (${gesture.duration}s)`);
+  // console.log(`[gesture] Seat ${state.seatIndex}: ${gesture.name} (${gesture.duration}s)`);
 }
 
 // Apply a bone rotation: rest pose * natural pose * idle offset * gesture offset
@@ -281,7 +287,7 @@ function updateBoneAnimations() {
       // (sin+1)/2 maps to 0→1, so arm only swings forward from rest, never back
       const lSwing = ((Math.sin(lPhase) + 1) / 2) * offsets.armAmplitude;
       const idleOffset = Quaternion.FromEulerAngles(-lSwing, 0, 0);
-      applyBoneRotation(bones.leftArm, restPoses.leftArm, NATURAL_POSE.leftArm, idleOffset, gTarget('leftArm'), gestureBlendVal);
+      applyBoneRotation(bones.leftArm, restPoses.leftArm, state.naturalPose.leftArm, idleOffset, gTarget('leftArm'), gestureBlendVal);
     }
 
     // Right arm — natural pose + idle sway (forward only) + gesture
@@ -289,17 +295,17 @@ function updateBoneAnimations() {
       const rPhase = time * offsets.armRSpeed + offsets.armROffset;
       const rSwing = ((Math.sin(rPhase) + 1) / 2) * offsets.armAmplitude;
       const idleOffset = Quaternion.FromEulerAngles(-rSwing, 0, 0);
-      applyBoneRotation(bones.rightArm, restPoses.rightArm, NATURAL_POSE.rightArm, idleOffset, gTarget('rightArm'), gestureBlendVal);
+      applyBoneRotation(bones.rightArm, restPoses.rightArm, state.naturalPose.rightArm, idleOffset, gTarget('rightArm'), gestureBlendVal);
     }
 
     // Forearms — natural pose + gesture
     if (bones.leftForearm && restPoses.leftForearm) {
       const idleOffset = Quaternion.Identity();
-      applyBoneRotation(bones.leftForearm, restPoses.leftForearm, NATURAL_POSE.leftForearm, idleOffset, gTarget('leftForearm'), gestureBlendVal);
+      applyBoneRotation(bones.leftForearm, restPoses.leftForearm, state.naturalPose.leftForearm, idleOffset, gTarget('leftForearm'), gestureBlendVal);
     }
     if (bones.rightForearm && restPoses.rightForearm) {
       const idleOffset = Quaternion.Identity();
-      applyBoneRotation(bones.rightForearm, restPoses.rightForearm, NATURAL_POSE.rightForearm, idleOffset, gTarget('rightForearm'), gestureBlendVal);
+      applyBoneRotation(bones.rightForearm, restPoses.rightForearm, state.naturalPose.rightForearm, idleOffset, gTarget('rightForearm'), gestureBlendVal);
     }
 
     // Clavicles — gesture only (shrug)
@@ -315,7 +321,7 @@ function updateBoneAnimations() {
 }
 
 // Initialize animations for a character instance
-export function initCharacterAnimations(scene, rootNode, seatIndex) {
+export function initCharacterAnimations(scene, rootNode, seatIndex, characterName) {
   if (!rootNode) {
     return;
   }
@@ -333,6 +339,7 @@ export function initCharacterAnimations(scene, rootNode, seatIndex) {
     bones: null,
     restPoses: null,
     offsets: null,
+    naturalPose: getNaturalPose(characterName || ''),
     activeGesture: null,
     nextGestureTime: performance.now() / 1000 + 2 + Math.random() * 5, // first gesture 2-7s in
     originalY: rootNode.position.y,

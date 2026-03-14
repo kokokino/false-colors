@@ -392,7 +392,7 @@ export async function placeCharacters(players, mySeatIndex) {
     }
 
     // Initialize idle animations
-    initCharacterAnimations(scene, rootNode, seatIndex);
+    initCharacterAnimations(scene, rootNode, seatIndex, characterName.toLowerCase());
 
     // Highlight the player's own character
     if (seatIndex === mySeatIndex) {
