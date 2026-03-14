@@ -86,7 +86,7 @@ const PROP_POSITIONS = {
   lantern_0:    new Vector3(-1.5, FLOOR_Y + 1.5, -1.5),     // hanging/mounted, left-front
   lantern_1:    new Vector3(1.5, FLOOR_Y + 1.5, -1.5),      // hanging/mounted, right-front
   lantern_2:    new Vector3(0, FLOOR_Y + 1.8, 1.5),          // hanging/mounted, back-center
-  helm:         new Vector3(0, FLOOR_Y + 0.5, 3.5),          // behind the back seat, decorative
+  helm:         new Vector3(1.0, FLOOR_Y + 0.5, 5.5),         // visible through cabin window, on "deck"
 };
 
 // Scale factors for props (most are too large or small at default)
