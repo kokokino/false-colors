@@ -13,7 +13,9 @@ import '@babylonjs/core/Animations/animatable.js';
 import {
   loadCharacter,
   loadThreat,
+  loadProp,
   loadEnvironment,
+  loadEnvironmentInstance,
   preloadCharacters,
   preloadEnvironment,
   disposeAll as disposeAssets,
@@ -32,35 +34,74 @@ import {
   disposeAtmosphere,
 } from './atmosphereManager.js';
 
+// Y offset for the cabin floor (characters and furniture sit on this plane)
+const FLOOR_Y = 0.45;
+
 // 6 seats arranged in a hexagon around the war table
 const SEAT_POSITIONS = [
-  new Vector3(0, 0, -2),      // seat 0 — front
-  new Vector3(1.73, 0, -1),   // seat 1 — front-right
-  new Vector3(1.73, 0, 1),    // seat 2 — back-right
-  new Vector3(0, 0, 2),       // seat 3 — back
-  new Vector3(-1.73, 0, 1),   // seat 4 — back-left
-  new Vector3(-1.73, 0, -1),  // seat 5 — front-left
+  new Vector3(0, FLOOR_Y, -2),      // seat 0 — front
+  new Vector3(1.73, FLOOR_Y, -1),   // seat 1 — front-right
+  new Vector3(1.73, FLOOR_Y, 1),    // seat 2 — back-right
+  new Vector3(0, FLOOR_Y, 2),       // seat 3 — back
+  new Vector3(-1.73, FLOOR_Y, 1),   // seat 4 — back-left
+  new Vector3(-1.73, FLOOR_Y, -1),  // seat 5 — front-left
 ];
 
-// Characters face the center of the table
-const SEAT_ROTATIONS = [
-  0,                           // seat 0 faces +Z
-  -Math.PI / 3,                // seat 1
-  -(2 * Math.PI / 3),          // seat 2
-  Math.PI,                     // seat 3
-  (2 * Math.PI / 3),           // seat 4
-  Math.PI / 3,                 // seat 5
-];
+// Compute Y rotation so a character at seatPos faces the table center (0,0,0).
+// Models face -Z at rotation.y = 0 (confirmed empirically from Tripo exports).
+// Direction from seat to center is (-x, -z). We want the model's -Z axis to
+// align with that direction. rotation.y = atan2(-x, -z) works when forward is +Z;
+// since forward is -Z we add PI.
+function faceCenter(seatPos) {
+  return Math.atan2(-seatPos.x, -seatPos.z);
+}
+
+// Per-character scale and rotation corrections for models of varying size/orientation
+// scale: uniform scale factor to normalize height so characters stand taller than the table
+// rotationOffset: extra Y rotation if the model's forward isn't +Z
+const CHARACTER_ADJUSTMENTS = {
+  blackwood:  { scale: 1.4, rotationOffset: 0 },
+  voss:       { scale: 1.4, rotationOffset: 0 },
+  thorne:     { scale: 1.7, rotationOffset: 0 },
+  crane:      { scale: 1.4, rotationOffset: 0 },
+  maren:      { scale: 1.4, rotationOffset: 0 },
+  delgado:    { scale: 1.5, rotationOffset: 0 },
+};
 
 // Threat token positions on the table surface
 const THREAT_SLOT_POSITIONS = [
-  new Vector3(-0.6, 0.82, -0.4),
-  new Vector3(0, 0.82, -0.4),
-  new Vector3(0.6, 0.82, -0.4),
-  new Vector3(-0.6, 0.82, 0.4),
-  new Vector3(0, 0.82, 0.4),
-  new Vector3(0.6, 0.82, 0.4),
+  new Vector3(-0.6, FLOOR_Y + 0.82, -0.4),
+  new Vector3(0, FLOOR_Y + 0.82, -0.4),
+  new Vector3(0.6, FLOOR_Y + 0.82, -0.4),
+  new Vector3(-0.6, FLOOR_Y + 0.82, 0.4),
+  new Vector3(0, FLOOR_Y + 0.82, 0.4),
+  new Vector3(0.6, FLOOR_Y + 0.82, 0.4),
 ];
+
+// Prop placement positions on/around the table
+const PROP_POSITIONS = {
+  ocean_map:    new Vector3(0, FLOOR_Y + 0.81, 0),         // flat on table center
+  compass:      new Vector3(0.8, FLOOR_Y + 0.83, 0),        // on table, offset right
+  doom_crystal: new Vector3(-0.9, FLOOR_Y + 0.83, 0),       // on table, offset left
+  lantern_0:    new Vector3(-1.5, FLOOR_Y + 1.5, -1.5),     // hanging/mounted, left-front
+  lantern_1:    new Vector3(1.5, FLOOR_Y + 1.5, -1.5),      // hanging/mounted, right-front
+  lantern_2:    new Vector3(0, FLOOR_Y + 1.8, 1.5),          // hanging/mounted, back-center
+  helm:         new Vector3(0, FLOOR_Y + 0.5, 3.5),          // behind the back seat, decorative
+};
+
+// Scale factors for props (most are too large or small at default)
+const PROP_SCALES = {
+  ocean_map:    0.5,
+  compass:      0.15,
+  doom_crystal: 0.15,
+  lantern:      0.6,
+  helm:         1.2,
+  cabin:        1.0,
+  gold_coin:    0.08,
+  skull:        0.08,
+  resolve_gem:  0.06,
+  curse_card:   0.1,
+};
 
 let sceneState = null;
 
@@ -81,7 +122,7 @@ export async function initScene(canvas, onProgress) {
     -Math.PI / 2, // alpha — horizontal angle
     Math.PI / 3,  // beta — vertical angle (looking down at ~60deg)
     6,            // radius — distance from target
-    new Vector3(0, 0.5, 0), // target — table center
+    new Vector3(0, FLOOR_Y + 0.5, 0), // target — table center
     scene
   );
   camera.lowerRadiusLimit = 3;
@@ -91,33 +132,97 @@ export async function initScene(canvas, onProgress) {
   camera.attachControl(canvas, true);
   camera.wheelPrecision = 30;
 
-  // Ambient light
+  // Ambient light — slightly brighter for character readability
   const ambientLight = new HemisphericLight(
     'ambient',
     new Vector3(0, 1, 0),
     scene
   );
-  ambientLight.intensity = 0.4;
+  ambientLight.intensity = 0.55;
   ambientLight.diffuse = new Color3(0.55, 0.42, 0.25);
-  ambientLight.groundColor = new Color3(0.1, 0.08, 0.06);
+  ambientLight.groundColor = new Color3(0.15, 0.12, 0.08);
 
   // Initialize atmosphere (lantern lights, fog, particles)
   initAtmosphere(scene);
 
-  // Create placeholder table if GLB not available
-  await createPlaceholderScene(scene);
-
-  // Attempt to load GLB environment
+  // Load environment
   if (onProgress) {
     onProgress('Loading environment...');
   }
+
+  // Load war table (with floor plane fallback)
   const warTable = await loadEnvironment(scene, 'war_table');
-  if (warTable) {
-    // Remove placeholder table
-    const placeholder = scene.getMeshByName('placeholder_table');
-    if (placeholder) {
-      placeholder.dispose();
+  if (warTable && warTable.rootNodes && warTable.rootNodes.length > 0) {
+    warTable.rootNodes[0].position.y = FLOOR_Y;
+  } else {
+    await createPlaceholderScene(scene);
+  }
+
+  // Load ocean map onto the table
+  const oceanMap = await loadEnvironment(scene, 'ocean_map');
+  if (oceanMap && oceanMap.rootNodes && oceanMap.rootNodes.length > 0) {
+    const mapNode = oceanMap.rootNodes[0];
+    mapNode.position = PROP_POSITIONS.ocean_map.clone();
+    mapNode.scaling = new Vector3(PROP_SCALES.ocean_map, PROP_SCALES.ocean_map, PROP_SCALES.ocean_map);
+  }
+
+  // Load lantern GLBs at the three lantern light positions
+  for (let i = 0; i < 3; i++) {
+    const lanternInstance = await loadEnvironmentInstance(scene, 'lantern', `lantern_${i}`);
+    if (lanternInstance && lanternInstance.rootNodes && lanternInstance.rootNodes.length > 0) {
+      const lanternNode = lanternInstance.rootNodes[0];
+      const posKey = `lantern_${i}`;
+      lanternNode.position = PROP_POSITIONS[posKey].clone();
+      const s = PROP_SCALES.lantern;
+      lanternNode.scaling = new Vector3(s, s, s);
     }
+  }
+
+  // Load helm as background decoration
+  const helm = await loadEnvironment(scene, 'helm');
+  if (helm && helm.rootNodes && helm.rootNodes.length > 0) {
+    const helmNode = helm.rootNodes[0];
+    helmNode.position = PROP_POSITIONS.helm.clone();
+    const s = PROP_SCALES.helm;
+    helmNode.scaling = new Vector3(s, s, s);
+  }
+
+  // Load cabin room (surrounds the scene)
+  const cabin = await loadEnvironment(scene, 'cabin');
+  if (cabin && cabin.rootNodes && cabin.rootNodes.length > 0) {
+    const cabinNode = cabin.rootNodes[0];
+    cabinNode.position = new Vector3(0, 0, 3.0);
+    const s = PROP_SCALES.cabin;
+    cabinNode.scaling = new Vector3(s, s, s);
+  }
+
+  // Load compass on the table
+  const compass = await loadProp(scene, 'compass');
+  if (compass && compass.rootNodes && compass.rootNodes.length > 0) {
+    const compassNode = compass.rootNodes[0];
+    compassNode.position = PROP_POSITIONS.compass.clone();
+    const s = PROP_SCALES.compass;
+    compassNode.scaling = new Vector3(s, s, s);
+  }
+
+  // Load doom crystal on the table (visual doom indicator)
+  const doomCrystal = await loadProp(scene, 'doom_crystal');
+  let doomCrystalNode = null;
+  if (doomCrystal && doomCrystal.rootNodes && doomCrystal.rootNodes.length > 0) {
+    doomCrystalNode = doomCrystal.rootNodes[0];
+    doomCrystalNode.position = PROP_POSITIONS.doom_crystal.clone();
+    const s = PROP_SCALES.doom_crystal;
+    doomCrystalNode.scaling = new Vector3(s, s, s);
+  }
+
+  // Floor plane (always present, even with GLB table)
+  const existingFloor = scene.getMeshByName('floor');
+  if (!existingFloor) {
+    const floor = MeshBuilder.CreateGround('floor', { width: 10, height: 10 }, scene);
+    const floorMat = new StandardMaterial('floorMat', scene);
+    floorMat.diffuseColor = new Color3(0.12, 0.08, 0.05);
+    floorMat.specularColor = new Color3(0.02, 0.02, 0.02);
+    floor.material = floorMat;
   }
 
   // Pre-load character models
@@ -137,8 +242,12 @@ export async function initScene(canvas, onProgress) {
     ambientLight,
     characterNodes: new Map(),
     threatNodes: new Map(),
+    propNodes: new Map(),
+    doomCrystalNode,
     previousThreats: [],
     previousPhase: null,
+    previousGoldCount: 0,
+    previousSkullCount: 0,
   };
 
   // Start render loop
@@ -154,7 +263,7 @@ export async function initScene(canvas, onProgress) {
   return sceneState;
 }
 
-// Create placeholder geometry when GLB assets aren't available yet
+// Create placeholder geometry when GLB table isn't available
 async function createPlaceholderScene(scene) {
   // Table — dark wood cylinder
   const table = MeshBuilder.CreateCylinder('placeholder_table', {
@@ -162,23 +271,23 @@ async function createPlaceholderScene(scene) {
     height: 0.1,
     tessellation: 24,
   }, scene);
-  table.position = new Vector3(0, 0.75, 0);
+  table.position = new Vector3(0, FLOOR_Y + 0.75, 0);
 
   const tableMat = new StandardMaterial('tableMat', scene);
   tableMat.diffuseColor = new Color3(0.25, 0.15, 0.08);
   tableMat.specularColor = new Color3(0.1, 0.08, 0.05);
   table.material = tableMat;
 
-  // Table legs
+  // Table legs — parent them to the table so they get removed together
   for (let i = 0; i < 4; i++) {
     const angle = (i / 4) * Math.PI * 2;
-    const leg = MeshBuilder.CreateCylinder(`table_leg_${i}`, {
+    const leg = MeshBuilder.CreateCylinder(`placeholder_table_leg_${i}`, {
       diameter: 0.08,
       height: 0.75,
     }, scene);
     leg.position = new Vector3(
       Math.cos(angle) * 1.2,
-      0.375,
+      FLOOR_Y + 0.375,
       Math.sin(angle) * 1.2
     );
     leg.material = tableMat;
@@ -218,6 +327,15 @@ export async function placeCharacters(players, mySeatIndex) {
 
     if (instance && instance.rootNodes && instance.rootNodes.length > 0) {
       rootNode = instance.rootNodes[0];
+
+      // Apply per-character scale and rotation corrections
+      const adjustKey = characterName.toLowerCase();
+      const adj = CHARACTER_ADJUSTMENTS[adjustKey] || { scale: 1.4, rotationOffset: 0 };
+      rootNode.scaling = new Vector3(adj.scale, adj.scale, adj.scale);
+
+      // Position and rotate to face center
+      rootNode.position = SEAT_POSITIONS[seatIndex].clone();
+      rootNode.rotation = new Vector3(0, faceCenter(SEAT_POSITIONS[seatIndex]) + adj.rotationOffset, 0);
     } else {
       // Placeholder — colored capsule
       rootNode = new TransformNode(`char_placeholder_${seatIndex}`, scene);
@@ -240,11 +358,10 @@ export async function placeCharacters(players, mySeatIndex) {
       mat.diffuseColor = Color3.FromHSV(hue * 360, 0.5, 0.6);
       body.material = mat;
       headSphere.material = mat;
-    }
 
-    // Position and rotate
-    rootNode.position = SEAT_POSITIONS[seatIndex].clone();
-    rootNode.rotation = new Vector3(0, SEAT_ROTATIONS[seatIndex], 0);
+      rootNode.position = SEAT_POSITIONS[seatIndex].clone();
+      rootNode.rotation = new Vector3(0, faceCenter(SEAT_POSITIONS[seatIndex]), 0);
+    }
 
     // Initialize idle animations
     initCharacterAnimations(scene, rootNode, seatIndex);
@@ -286,6 +403,8 @@ export async function updateThreats(activeThreats) {
 
       if (instance && instance.rootNodes && instance.rootNodes.length > 0) {
         node = instance.rootNodes[0];
+        // Scale threat tokens to be visible on the table
+        node.scaling = new Vector3(0.15, 0.15, 0.15);
       } else {
         // Placeholder — colored box
         node = MeshBuilder.CreateBox(`threat_${threat.id}`, {
@@ -303,6 +422,14 @@ export async function updateThreats(activeThreats) {
         node.position = pos.clone();
       }
 
+      // Add emissive glow to make threats more visible
+      const meshes = node.getChildMeshes ? node.getChildMeshes(false) : [];
+      for (const mesh of meshes) {
+        if (mesh.material) {
+          mesh.material.emissiveColor = getThreatColor(threat.type).scale(0.2);
+        }
+      }
+
       threatNodes.set(threat.id, node);
 
       // Trigger atmospheric effect for new threats
@@ -314,6 +441,74 @@ export async function updateThreats(activeThreats) {
   }
 
   sceneState.previousThreats = [...activeThreats];
+}
+
+// Update gold coins and skulls displayed on the table
+async function updateScoreTokens(game) {
+  if (!sceneState) {
+    return;
+  }
+  const { scene, propNodes } = sceneState;
+
+  const goldCount = (game.goldCoins || []).length;
+  const skullCount = (game.skulls || []).length;
+
+  // Add new gold coins
+  if (goldCount > sceneState.previousGoldCount) {
+    for (let i = sceneState.previousGoldCount; i < goldCount; i++) {
+      const coin = await loadProp(scene, 'gold_coin');
+      if (coin && coin.rootNodes && coin.rootNodes.length > 0) {
+        const coinNode = coin.rootNodes[0];
+        const s = PROP_SCALES.gold_coin;
+        coinNode.scaling = new Vector3(s, s, s);
+        // Stack coins in a row on the left side of the table
+        coinNode.position = new Vector3(-0.4 + (i * 0.12), FLOOR_Y + 0.84, -0.7);
+        propNodes.set(`gold_${i}`, coinNode);
+      }
+    }
+  }
+  sceneState.previousGoldCount = goldCount;
+
+  // Add new skulls
+  if (skullCount > sceneState.previousSkullCount) {
+    for (let i = sceneState.previousSkullCount; i < skullCount; i++) {
+      const skull = await loadProp(scene, 'skull');
+      if (skull && skull.rootNodes && skull.rootNodes.length > 0) {
+        const skullNode = skull.rootNodes[0];
+        const s = PROP_SCALES.skull;
+        skullNode.scaling = new Vector3(s, s, s);
+        // Stack skulls in a row on the right side of the table
+        skullNode.position = new Vector3(0.4 + (i * 0.12), FLOOR_Y + 0.84, -0.7);
+        propNodes.set(`skull_${i}`, skullNode);
+      }
+    }
+  }
+  sceneState.previousSkullCount = skullCount;
+}
+
+// Update doom crystal visual based on doom level
+function updateDoomCrystal(doomRatio) {
+  if (!sceneState || !sceneState.doomCrystalNode) {
+    return;
+  }
+
+  const node = sceneState.doomCrystalNode;
+  // Pulse scale with doom
+  const baseScale = PROP_SCALES.doom_crystal;
+  const pulseScale = baseScale * (1 + doomRatio * 0.5);
+  node.scaling = new Vector3(pulseScale, pulseScale, pulseScale);
+
+  // Shift emissive color from dim to bright ominous red-purple
+  const meshes = node.getChildMeshes ? node.getChildMeshes(false) : [];
+  for (const mesh of meshes) {
+    if (mesh.material) {
+      mesh.material.emissiveColor = new Color3(
+        0.3 * doomRatio,
+        0.05 * doomRatio,
+        0.2 * doomRatio
+      );
+    }
+  }
 }
 
 // Get a representative color for a threat type
@@ -338,6 +533,7 @@ export function updateGameState(game, mySeatIndex) {
   // Update doom atmosphere
   const doomRatio = game.doomLevel / (game.doomThreshold || 30);
   updateDoomAtmosphere(doomRatio);
+  updateDoomCrystal(doomRatio);
 
   // Update character poses based on phase
   if (game.currentPhase !== sceneState.previousPhase) {
@@ -347,6 +543,9 @@ export function updateGameState(game, mySeatIndex) {
 
   // Update threats
   updateThreats(game.activeThreats || []);
+
+  // Update score tokens (gold coins and skulls)
+  updateScoreTokens(game);
 }
 
 // Set character poses based on current phase

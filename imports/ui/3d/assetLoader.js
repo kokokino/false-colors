@@ -46,6 +46,7 @@ const ENVIRONMENT_FILES = {
   ocean_map: 'environment/ocean_map.glb',
   lantern: 'environment/lantern.glb',
   helm: 'environment/helm.glb',
+  cabin: 'environment/cabin.glb',
 };
 
 // Load a GLB file into an AssetContainer (cached)
@@ -133,6 +134,17 @@ export async function loadEnvironment(scene, envName) {
   }
   const container = await loadContainer(scene, file);
   return instantiateFromContainer(container, envName);
+}
+
+// Load environment with a custom instance name (for placing multiple copies)
+export async function loadEnvironmentInstance(scene, envName, instanceName) {
+  const file = ENVIRONMENT_FILES[envName];
+  if (!file) {
+    console.warn(`[assetLoader] Unknown environment piece: ${envName}`);
+    return null;
+  }
+  const container = await loadContainer(scene, file);
+  return instantiateFromContainer(container, instanceName);
 }
 
 // Pre-load all character models (call during game init for faster scene setup)
