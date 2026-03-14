@@ -138,9 +138,9 @@ export async function initScene(canvas, onProgress) {
     new Vector3(0, 1, 0),
     scene
   );
-  ambientLight.intensity = 0.55;
-  ambientLight.diffuse = new Color3(0.55, 0.42, 0.25);
-  ambientLight.groundColor = new Color3(0.15, 0.12, 0.08);
+  ambientLight.intensity = 0.85;
+  ambientLight.diffuse = new Color3(0.65, 0.55, 0.40);
+  ambientLight.groundColor = new Color3(0.25, 0.20, 0.15);
 
   // Initialize atmosphere (lantern lights, fog, particles)
   initAtmosphere(scene);
