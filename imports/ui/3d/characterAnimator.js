@@ -4,7 +4,8 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
 import { Quaternion } from '@babylonjs/core/Maths/math.vector.js';
 
 // Character animation driver
-// Handles bone-based idle animations, phase poses, highlight effects, and morph target prep for lip sync
+// Handles bone-based idle animations with periodic gestures, phase poses,
+// highlight effects, and morph target prep for lip sync
 
 // Per-character animation state
 const characterStates = new Map();
@@ -52,9 +53,175 @@ function captureRestPose(bone) {
   return null;
 }
 
+// Smooth interpolation helper (0→1→0 over duration)
+function gestureBlend(startTime, now, duration) {
+  const elapsed = now - startTime;
+  if (elapsed < 0 || elapsed > duration) {
+    return 0;
+  }
+  const t = elapsed / duration;
+  // Smooth bell curve: sin² for natural ease in/out
+  return Math.sin(t * Math.PI) ** 2;
+}
+
+// Gesture definitions — each returns target Euler offsets for specific bones
+// { boneName: { pitch, yaw, roll }, duration, ... }
+const GESTURES = [
+  // Chin touch — raise right forearm toward face, tilt head down
+  {
+    name: 'chin_touch',
+    duration: 4.0,
+    targets: {
+      rightArm: { pitch: -0.8, yaw: 0.3, roll: 0.2 },
+      rightForearm: { pitch: -1.2, yaw: 0, roll: 0 },
+      head: { pitch: 0.15, yaw: 0.1, roll: 0 },
+      spine: { pitch: 0.05, yaw: 0, roll: 0 },
+    },
+  },
+  // Look around — big head turn, slight spine follow
+  {
+    name: 'look_right',
+    duration: 3.5,
+    targets: {
+      head: { pitch: 0, yaw: 0.4, roll: 0.05 },
+      spine: { pitch: 0, yaw: 0.08, roll: 0 },
+    },
+  },
+  {
+    name: 'look_left',
+    duration: 3.5,
+    targets: {
+      head: { pitch: 0, yaw: -0.4, roll: -0.05 },
+      spine: { pitch: 0, yaw: -0.08, roll: 0 },
+    },
+  },
+  // Lean forward — inspect the table
+  {
+    name: 'lean_inspect',
+    duration: 4.5,
+    targets: {
+      spine: { pitch: -0.15, yaw: 0, roll: 0 },
+      head: { pitch: -0.1, yaw: 0, roll: 0 },
+    },
+  },
+  // Shoulder shrug — quick raise of both arms
+  {
+    name: 'shrug',
+    duration: 2.5,
+    targets: {
+      leftClavicle: { pitch: 0, yaw: 0, roll: 0.25 },
+      rightClavicle: { pitch: 0, yaw: 0, roll: -0.25 },
+      head: { pitch: 0.08, yaw: 0, roll: 0 },
+    },
+  },
+  // Lean back — relax posture
+  {
+    name: 'lean_back',
+    duration: 5.0,
+    targets: {
+      spine: { pitch: 0.1, yaw: 0, roll: 0 },
+      head: { pitch: -0.05, yaw: 0, roll: 0 },
+      leftArm: { pitch: 0.15, yaw: 0, roll: 0.1 },
+      rightArm: { pitch: 0.15, yaw: 0, roll: -0.1 },
+    },
+  },
+  // Hand on hip — left arm akimbo
+  {
+    name: 'hand_on_hip',
+    duration: 5.0,
+    targets: {
+      leftArm: { pitch: 0.3, yaw: 0.4, roll: 0.6 },
+      leftForearm: { pitch: -0.8, yaw: 0, roll: 0 },
+      hip: { pitch: 0, yaw: 0, roll: 0.03 },
+    },
+  },
+  // Scratch head — right hand up to head
+  {
+    name: 'scratch_head',
+    duration: 3.0,
+    targets: {
+      rightArm: { pitch: -1.0, yaw: 0.2, roll: -0.3 },
+      rightForearm: { pitch: -1.0, yaw: 0, roll: 0 },
+      head: { pitch: 0.1, yaw: -0.15, roll: 0.05 },
+    },
+  },
+  // Fold arms — both arms across chest
+  {
+    name: 'fold_arms',
+    duration: 5.5,
+    targets: {
+      leftArm: { pitch: -0.3, yaw: 0.5, roll: 0.4 },
+      leftForearm: { pitch: -1.3, yaw: 0.3, roll: 0 },
+      rightArm: { pitch: -0.3, yaw: -0.5, roll: -0.4 },
+      rightForearm: { pitch: -1.3, yaw: -0.3, roll: 0 },
+      spine: { pitch: 0.05, yaw: 0, roll: 0 },
+    },
+  },
+  // Nod thoughtfully
+  {
+    name: 'thoughtful_nod',
+    duration: 3.0,
+    targets: {
+      head: { pitch: 0.2, yaw: 0.05, roll: 0 },
+      spine: { pitch: 0.03, yaw: 0, roll: 0 },
+    },
+  },
+];
+
+// Natural resting pose offsets — applied on top of T-pose rest to bring arms down
+// These rotate bones from T-pose into a relaxed standing position
+const NATURAL_POSE = {
+  leftArm:      Quaternion.FromEulerAngles(0.15, 0, 1.2),    // rotate down ~70deg + slight forward
+  rightArm:     Quaternion.FromEulerAngles(0.15, 0, -1.2),   // mirror for right side
+  leftForearm:  Quaternion.FromEulerAngles(0, 0, 0.2),       // slight bend at elbow
+  rightForearm: Quaternion.FromEulerAngles(0, 0, -0.2),      // mirror
+};
+
+// Pick a random gesture and start it for a character
+function triggerRandomGesture(state, time) {
+  const gesture = GESTURES[Math.floor(Math.random() * GESTURES.length)];
+  state.activeGesture = {
+    gesture,
+    startTime: time,
+    endTime: time + gesture.duration,
+  };
+  // Schedule next gesture 6-14 seconds after this one ends
+  state.nextGestureTime = time + gesture.duration + 6 + Math.random() * 8;
+}
+
+// Apply a bone rotation: rest pose * natural pose * idle offset * gesture offset
+function applyBoneRotation(bone, restPose, naturalOffset, idleOffset, gestureOffset, blend) {
+  const tn = getBoneTransform(bone);
+  if (!tn || !restPose) {
+    return;
+  }
+
+  let finalQuat = restPose;
+
+  // Apply natural resting pose (e.g., arms down from T-pose)
+  if (naturalOffset) {
+    finalQuat = finalQuat.multiply(naturalOffset);
+  }
+
+  // Apply idle sway
+  finalQuat = finalQuat.multiply(idleOffset);
+
+  // Blend in gesture if active
+  if (blend > 0.001 && gestureOffset) {
+    const gestureQuat = Quaternion.FromEulerAngles(
+      gestureOffset.pitch * blend,
+      gestureOffset.yaw * blend,
+      gestureOffset.roll * blend
+    );
+    finalQuat = finalQuat.multiply(gestureQuat);
+  }
+
+  tn.rotationQuaternion = finalQuat;
+}
+
 // Per-frame update for all character bone animations
 function updateBoneAnimations() {
-  const time = performance.now() / 1000; // seconds
+  const time = performance.now() / 1000;
 
   for (const [seatIndex, state] of characterStates) {
     if (!state.skeleton || !state.bones) {
@@ -63,59 +230,86 @@ function updateBoneAnimations() {
 
     const { bones, offsets, restPoses } = state;
 
-    // Head movement — look left/right with occasional nod
+    // Check if it's time to trigger a new gesture
+    if (time >= state.nextGestureTime && !state.activeGesture) {
+      triggerRandomGesture(state, time);
+    }
+
+    // Calculate gesture blend
+    let gestureBlendVal = 0;
+    let gestureTargets = null;
+    if (state.activeGesture) {
+      const { gesture, startTime, endTime } = state.activeGesture;
+      gestureBlendVal = gestureBlend(startTime, time, gesture.duration);
+      gestureTargets = gesture.targets;
+      if (time > endTime) {
+        state.activeGesture = null;
+      }
+    }
+
+    // Get gesture target for a bone key, or null
+    const gTarget = (key) => gestureTargets ? (gestureTargets[key] || null) : null;
+
+    // Head — idle look + gesture
     if (bones.head && restPoses.head) {
-      const tn = getBoneTransform(bones.head);
-      if (tn) {
-        const turnPhase = time * offsets.headTurnSpeed + offsets.headTurnOffset;
-        const nodPhase = time * offsets.headNodSpeed + offsets.headNodOffset;
-        const yaw = Math.sin(turnPhase) * offsets.headAmplitude;
-        const pitch = Math.sin(nodPhase) * offsets.headNodAmplitude;
-        const offsetQuat = Quaternion.FromEulerAngles(pitch, yaw, 0);
-        tn.rotationQuaternion = restPoses.head.multiply(offsetQuat);
-      }
+      const turnPhase = time * offsets.headTurnSpeed + offsets.headTurnOffset;
+      const nodPhase = time * offsets.headNodSpeed + offsets.headNodOffset;
+      const yaw = Math.sin(turnPhase) * offsets.headAmplitude;
+      const pitch = Math.sin(nodPhase) * offsets.headNodAmplitude;
+      const idleOffset = Quaternion.FromEulerAngles(pitch, yaw, 0);
+      applyBoneRotation(bones.head, restPoses.head, null, idleOffset, gTarget('head'), gestureBlendVal);
     }
 
-    // Weight shift — hip tilt
+    // Hip — idle sway + gesture
     if (bones.hip && restPoses.hip) {
-      const tn = getBoneTransform(bones.hip);
-      if (tn) {
-        const swayPhase = time * offsets.swaySpeed + offsets.swayOffset;
-        const tilt = Math.sin(swayPhase) * offsets.swayAmplitude;
-        const offsetQuat = Quaternion.FromEulerAngles(0, 0, tilt);
-        tn.rotationQuaternion = restPoses.hip.multiply(offsetQuat);
-      }
+      const swayPhase = time * offsets.swaySpeed + offsets.swayOffset;
+      const tilt = Math.sin(swayPhase) * offsets.swayAmplitude;
+      const idleOffset = Quaternion.FromEulerAngles(0, 0, tilt);
+      applyBoneRotation(bones.hip, restPoses.hip, null, idleOffset, gTarget('hip'), gestureBlendVal);
     }
 
-    // Breathing — spine rotation (slight forward/back lean)
+    // Spine — idle breathing + gesture
     if (bones.spine && restPoses.spine) {
-      const tn = getBoneTransform(bones.spine);
-      if (tn) {
-        const breathPhase = time * offsets.breathSpeed + offsets.breathOffset;
-        const breathLean = Math.sin(breathPhase) * 0.02;
-        const offsetQuat = Quaternion.FromEulerAngles(breathLean, 0, 0);
-        tn.rotationQuaternion = restPoses.spine.multiply(offsetQuat);
-      }
+      const breathPhase = time * offsets.breathSpeed + offsets.breathOffset;
+      const breathLean = Math.sin(breathPhase) * 0.02;
+      const idleOffset = Quaternion.FromEulerAngles(breathLean, 0, 0);
+      applyBoneRotation(bones.spine, restPoses.spine, null, idleOffset, gTarget('spine'), gestureBlendVal);
     }
 
-    // Arm sway — subtle pendulum
+    // Left arm — natural pose + idle sway + gesture
     if (bones.leftArm && restPoses.leftArm) {
-      const tn = getBoneTransform(bones.leftArm);
-      if (tn) {
-        const lPhase = time * offsets.armLSpeed + offsets.armLOffset;
-        const lSwing = Math.sin(lPhase) * offsets.armAmplitude;
-        const offsetQuat = Quaternion.FromEulerAngles(lSwing, 0, lSwing * 0.4);
-        tn.rotationQuaternion = restPoses.leftArm.multiply(offsetQuat);
-      }
+      const lPhase = time * offsets.armLSpeed + offsets.armLOffset;
+      const lSwing = Math.sin(lPhase) * offsets.armAmplitude;
+      const idleOffset = Quaternion.FromEulerAngles(lSwing, 0, lSwing * 0.4);
+      applyBoneRotation(bones.leftArm, restPoses.leftArm, NATURAL_POSE.leftArm, idleOffset, gTarget('leftArm'), gestureBlendVal);
     }
+
+    // Right arm — natural pose + idle sway + gesture
     if (bones.rightArm && restPoses.rightArm) {
-      const tn = getBoneTransform(bones.rightArm);
-      if (tn) {
-        const rPhase = time * offsets.armRSpeed + offsets.armROffset;
-        const rSwing = Math.sin(rPhase) * offsets.armAmplitude;
-        const offsetQuat = Quaternion.FromEulerAngles(rSwing, 0, -rSwing * 0.4);
-        tn.rotationQuaternion = restPoses.rightArm.multiply(offsetQuat);
-      }
+      const rPhase = time * offsets.armRSpeed + offsets.armROffset;
+      const rSwing = Math.sin(rPhase) * offsets.armAmplitude;
+      const idleOffset = Quaternion.FromEulerAngles(rSwing, 0, -rSwing * 0.4);
+      applyBoneRotation(bones.rightArm, restPoses.rightArm, NATURAL_POSE.rightArm, idleOffset, gTarget('rightArm'), gestureBlendVal);
+    }
+
+    // Forearms — natural pose + gesture
+    if (bones.leftForearm && restPoses.leftForearm) {
+      const idleOffset = Quaternion.Identity();
+      applyBoneRotation(bones.leftForearm, restPoses.leftForearm, NATURAL_POSE.leftForearm, idleOffset, gTarget('leftForearm'), gestureBlendVal);
+    }
+    if (bones.rightForearm && restPoses.rightForearm) {
+      const idleOffset = Quaternion.Identity();
+      applyBoneRotation(bones.rightForearm, restPoses.rightForearm, NATURAL_POSE.rightForearm, idleOffset, gTarget('rightForearm'), gestureBlendVal);
+    }
+
+    // Clavicles — gesture only (shrug)
+    if (bones.leftClavicle && restPoses.leftClavicle) {
+      const idleOffset = Quaternion.Identity();
+      applyBoneRotation(bones.leftClavicle, restPoses.leftClavicle, null, idleOffset, gTarget('leftClavicle'), gestureBlendVal);
+    }
+    if (bones.rightClavicle && restPoses.rightClavicle) {
+      const idleOffset = Quaternion.Identity();
+      applyBoneRotation(bones.rightClavicle, restPoses.rightClavicle, null, idleOffset, gTarget('rightClavicle'), gestureBlendVal);
     }
   }
 }
@@ -139,6 +333,8 @@ export function initCharacterAnimations(scene, rootNode, seatIndex) {
     bones: null,
     restPoses: null,
     offsets: null,
+    activeGesture: null,
+    nextGestureTime: performance.now() / 1000 + 2 + Math.random() * 5, // first gesture 2-7s in
     originalY: rootNode.position.y,
   };
 
@@ -146,24 +342,24 @@ export function initCharacterAnimations(scene, rootNode, seatIndex) {
   state.skeleton = skeleton;
 
   if (skeleton) {
-    // Find the bones we want to animate
+    // Find all bones we might animate
     state.bones = {
       spine: findBone(skeleton, 'Spine02') || findBone(skeleton, 'Spine01'),
       head: findBone(skeleton, 'Head'),
       hip: findBone(skeleton, 'Hip') || findBone(skeleton, 'Pelvis'),
       leftArm: findBone(skeleton, 'L_Upperarm'),
       rightArm: findBone(skeleton, 'R_Upperarm'),
+      leftForearm: findBone(skeleton, 'L_Forearm'),
+      rightForearm: findBone(skeleton, 'R_Forearm'),
+      leftClavicle: findBone(skeleton, 'L_Clavicle'),
+      rightClavicle: findBone(skeleton, 'R_Clavicle'),
     };
 
-    // Capture rest poses so we can composite offsets on top
-    state.restPoses = {
-      spine: captureRestPose(state.bones.spine),
-      head: captureRestPose(state.bones.head),
-      hip: captureRestPose(state.bones.hip),
-      leftArm: captureRestPose(state.bones.leftArm),
-      rightArm: captureRestPose(state.bones.rightArm),
-    };
-
+    // Capture rest poses for all bones
+    state.restPoses = {};
+    for (const [key, bone] of Object.entries(state.bones)) {
+      state.restPoses[key] = captureRestPose(bone);
+    }
 
     // Randomized per-character offsets so animations don't sync
     state.offsets = {
@@ -171,18 +367,18 @@ export function initCharacterAnimations(scene, rootNode, seatIndex) {
       breathOffset: Math.random() * Math.PI * 2,
       headTurnSpeed: 0.3 + Math.random() * 0.15,
       headTurnOffset: Math.random() * Math.PI * 2,
-      headAmplitude: 0.10 + Math.random() * 0.08,
+      headAmplitude: 0.12 + Math.random() * 0.10,
       headNodSpeed: 0.5 + Math.random() * 0.2,
       headNodOffset: Math.random() * Math.PI * 2,
-      headNodAmplitude: 0.03 + Math.random() * 0.02,
+      headNodAmplitude: 0.04 + Math.random() * 0.03,
       swaySpeed: 0.4 + Math.random() * 0.2,
       swayOffset: Math.random() * Math.PI * 2,
-      swayAmplitude: 0.012 + Math.random() * 0.008,
+      swayAmplitude: 0.02 + Math.random() * 0.01,
       armLSpeed: 0.35 + Math.random() * 0.15,
       armLOffset: Math.random() * Math.PI * 2,
       armRSpeed: 0.30 + Math.random() * 0.15,
       armROffset: Math.random() * Math.PI * 2,
-      armAmplitude: 0.03 + Math.random() * 0.02,
+      armAmplitude: 0.05 + Math.random() * 0.03,
     };
   }
 
@@ -234,7 +430,6 @@ export function setCharacterPose(seatIndex, pose) {
 }
 
 // Drive a morph target by name (prepared for Phase 4 lip sync via HeadTTS)
-// visemeWeights: { visemeName: weight } where weight is 0-1
 export function setVisemeWeights(seatIndex, visemeWeights) {
   const state = characterStates.get(seatIndex);
   if (!state || !state.rootNode) {
