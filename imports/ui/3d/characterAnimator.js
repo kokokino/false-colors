@@ -67,13 +67,13 @@ function gestureBlend(startTime, now, duration) {
 // Gesture definitions — each returns target Euler offsets for specific bones
 // { boneName: { pitch, yaw, roll }, duration, ... }
 const GESTURES = [
-  // Chin touch — raise right forearm toward face, tilt head down
+  // Chin touch — raise right arm, curl forearm toward face
   {
     name: 'chin_touch',
     duration: 4.0,
     targets: {
       rightArm: { pitch: -0.8, yaw: 0.3, roll: 0.2 },
-      rightForearm: { pitch: -1.2, yaw: 0, roll: 0 },
+      rightForearm: { pitch: 1.4, yaw: 0, roll: 0 },
       head: { pitch: 0.15, yaw: 0.1, roll: 0 },
       spine: { pitch: 0.05, yaw: 0, roll: 0 },
     },
@@ -121,39 +121,37 @@ const GESTURES = [
     targets: {
       spine: { pitch: 0.1, yaw: 0, roll: 0 },
       head: { pitch: -0.05, yaw: 0, roll: 0 },
-      leftArm: { pitch: 0.15, yaw: 0, roll: 0.1 },
-      rightArm: { pitch: 0.15, yaw: 0, roll: -0.1 },
     },
   },
-  // Hand on hip — left arm akimbo
+  // Hand on hip — left arm akimbo, forearm curls in
   {
     name: 'hand_on_hip',
     duration: 5.0,
     targets: {
       leftArm: { pitch: 0.3, yaw: 0.4, roll: 0.6 },
-      leftForearm: { pitch: -0.8, yaw: 0, roll: 0 },
+      leftForearm: { pitch: 1.0, yaw: 0, roll: 0 },
       hip: { pitch: 0, yaw: 0, roll: 0.03 },
     },
   },
-  // Scratch head — right hand up to head
+  // Scratch head — right arm up, forearm curls toward head
   {
     name: 'scratch_head',
     duration: 3.0,
     targets: {
       rightArm: { pitch: -1.0, yaw: 0.2, roll: -0.3 },
-      rightForearm: { pitch: -1.0, yaw: 0, roll: 0 },
+      rightForearm: { pitch: 1.5, yaw: 0, roll: 0 },
       head: { pitch: 0.1, yaw: -0.15, roll: 0.05 },
     },
   },
-  // Fold arms — both arms across chest
+  // Fold arms — both arms across chest, forearms curl in
   {
     name: 'fold_arms',
     duration: 5.5,
     targets: {
       leftArm: { pitch: -0.3, yaw: 0.5, roll: 0.4 },
-      leftForearm: { pitch: -1.3, yaw: 0.3, roll: 0 },
+      leftForearm: { pitch: 1.5, yaw: 0.3, roll: 0 },
       rightArm: { pitch: -0.3, yaw: -0.5, roll: -0.4 },
-      rightForearm: { pitch: -1.3, yaw: -0.3, roll: 0 },
+      rightForearm: { pitch: 1.5, yaw: -0.3, roll: 0 },
       spine: { pitch: 0.05, yaw: 0, roll: 0 },
     },
   },
@@ -171,10 +169,10 @@ const GESTURES = [
 // Natural resting pose offsets — applied on top of T-pose rest to bring arms down
 // These rotate bones from T-pose into a relaxed standing position
 const NATURAL_POSE = {
-  leftArm:      Quaternion.FromEulerAngles(0.15, 0, 1.2),    // rotate down ~70deg + slight forward
-  rightArm:     Quaternion.FromEulerAngles(0.15, 0, -1.2),   // mirror for right side
-  leftForearm:  Quaternion.FromEulerAngles(0, 0, 0.2),       // slight bend at elbow
-  rightForearm: Quaternion.FromEulerAngles(0, 0, -0.2),      // mirror
+  leftArm:      Quaternion.FromEulerAngles(0.15, 0, -0.9),   // rotate down ~50deg, arms slightly out
+  rightArm:     Quaternion.FromEulerAngles(0.15, 0, 0.9),    // mirror for right side
+  leftForearm:  new Quaternion(0.15, 0, 0, 0.99),             // bend elbow ~17deg (rotate around bone's local X)
+  rightForearm: new Quaternion(0.15, 0, 0, 0.99),            // same for both (elbows curl same direction in local space)
 };
 
 // Pick a random gesture and start it for a character
@@ -187,6 +185,7 @@ function triggerRandomGesture(state, time) {
   };
   // Schedule next gesture 6-14 seconds after this one ends
   state.nextGestureTime = time + gesture.duration + 6 + Math.random() * 8;
+  console.log(`[gesture] Seat ${state.seatIndex}: ${gesture.name} (${gesture.duration}s)`);
 }
 
 // Apply a bone rotation: rest pose * natural pose * idle offset * gesture offset
@@ -276,19 +275,20 @@ function updateBoneAnimations() {
       applyBoneRotation(bones.spine, restPoses.spine, null, idleOffset, gTarget('spine'), gestureBlendVal);
     }
 
-    // Left arm — natural pose + idle sway + gesture
+    // Left arm — natural pose + idle sway (forward only) + gesture
     if (bones.leftArm && restPoses.leftArm) {
       const lPhase = time * offsets.armLSpeed + offsets.armLOffset;
-      const lSwing = Math.sin(lPhase) * offsets.armAmplitude;
-      const idleOffset = Quaternion.FromEulerAngles(lSwing, 0, lSwing * 0.4);
+      // (sin+1)/2 maps to 0→1, so arm only swings forward from rest, never back
+      const lSwing = ((Math.sin(lPhase) + 1) / 2) * offsets.armAmplitude;
+      const idleOffset = Quaternion.FromEulerAngles(-lSwing, 0, 0);
       applyBoneRotation(bones.leftArm, restPoses.leftArm, NATURAL_POSE.leftArm, idleOffset, gTarget('leftArm'), gestureBlendVal);
     }
 
-    // Right arm — natural pose + idle sway + gesture
+    // Right arm — natural pose + idle sway (forward only) + gesture
     if (bones.rightArm && restPoses.rightArm) {
       const rPhase = time * offsets.armRSpeed + offsets.armROffset;
-      const rSwing = Math.sin(rPhase) * offsets.armAmplitude;
-      const idleOffset = Quaternion.FromEulerAngles(rSwing, 0, -rSwing * 0.4);
+      const rSwing = ((Math.sin(rPhase) + 1) / 2) * offsets.armAmplitude;
+      const idleOffset = Quaternion.FromEulerAngles(-rSwing, 0, 0);
       applyBoneRotation(bones.rightArm, restPoses.rightArm, NATURAL_POSE.rightArm, idleOffset, gTarget('rightArm'), gestureBlendVal);
     }
 
