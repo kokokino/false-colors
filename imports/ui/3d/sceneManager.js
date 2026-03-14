@@ -188,12 +188,15 @@ export async function initScene(canvas, onProgress) {
   }
 
   // Load cabin room (surrounds the scene)
+  let cabinMeshes = [];
   const cabin = await loadEnvironment(scene, 'cabin');
   if (cabin && cabin.rootNodes && cabin.rootNodes.length > 0) {
     const cabinNode = cabin.rootNodes[0];
     cabinNode.position = new Vector3(0, 0, 3.0);
     const s = PROP_SCALES.cabin;
     cabinNode.scaling = new Vector3(s, s, s);
+    // Collect all cabin meshes for camera occlusion hiding
+    cabinMeshes = cabinNode.getChildMeshes(false);
   }
 
   // Load compass on the table
@@ -250,8 +253,33 @@ export async function initScene(canvas, onProgress) {
     previousSkullCount: 0,
   };
 
-  // Start render loop
+  // Start render loop with cabin occlusion fading
+  const tableCenter = new Vector3(0, FLOOR_Y + 0.5, 0);
   engine.runRenderLoop(() => {
+    // Hide cabin meshes on the camera's side (XZ half-plane through cabin center).
+    // Splits the cabin in half relative to its own center — the near half is hidden.
+    const cabinCenterZ = 3.0; // matches cabinNode.position.z
+    if (cabinMeshes.length > 0) {
+      const camX = camera.position.x;
+      const camZ = camera.position.z;
+      // Direction from camera to table center on XZ plane
+      const dirLen = Math.sqrt(camX * camX + camZ * camZ);
+      if (dirLen > 0.01) {
+        const camDirX = -camX / dirLen;
+        const camDirZ = -camZ / dirLen;
+
+        for (const mesh of cabinMeshes) {
+          const meshPos = mesh.getAbsolutePosition();
+          // Mesh position relative to cabin center
+          const relX = meshPos.x;
+          const relZ = meshPos.z - cabinCenterZ;
+          // Project onto camera direction
+          const proj = relX * camDirX + relZ * camDirZ;
+          // Negative = mesh is on camera's side of cabin center. Hide it.
+          mesh.isVisible = proj > -1.0;
+        }
+      }
+    }
     scene.render();
   });
 
